@@ -1,0 +1,169 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "../config/firebase";
+
+const RECENT_ORDERS_KEY = "@soft_billing_recent_orders";
+const OFFLINE_QUEUE_KEY = "@soft_billing_offline_queue";
+
+export function calculateOrderTotals(cartItems) {
+  let subtotal_taxable = 0;
+  let total_cgst = 0;
+  let total_sgst = 0;
+
+  const processedItems = cartItems.map(item => {
+    const rate = Number(item.selling_rate || item.rate || 0);
+    const qty = Number(item.quantity || 1);
+    const taxRate = Number(item.tax_rate || 0);
+
+    const taxable = Math.round(rate * qty * 100) / 100;
+    const cgst = Math.round((taxable * (taxRate / 2) / 100) * 100) / 100;
+    const sgst = Math.round((taxable * (taxRate / 2) / 100) * 100) / 100;
+    const total = Math.round((taxable + cgst + sgst) * 100) / 100;
+
+    subtotal_taxable += taxable;
+    total_cgst += cgst;
+    total_sgst += sgst;
+
+    return {
+      product_id: item.id || null,
+      item_name: item.name,
+      quantity: qty,
+      unit: item.unit || "PCS",
+      rate: rate,
+      tax_rate: taxRate,
+      taxable_amount: taxable,
+      cgst_amount: cgst,
+      sgst_amount: sgst,
+      igst_amount: 0,
+      total_amount: total,
+      mrp: Number(item.mrp || rate)
+    };
+  });
+
+  subtotal_taxable = Math.round(subtotal_taxable * 100) / 100;
+  total_cgst = Math.round(total_cgst * 100) / 100;
+  total_sgst = Math.round(total_sgst * 100) / 100;
+  const grand_total = Math.round((subtotal_taxable + total_cgst + total_sgst) * 100) / 100;
+
+  return {
+    items: processedItems,
+    subtotal_taxable,
+    total_cgst,
+    total_sgst,
+    total_igst: 0,
+    grand_total
+  };
+}
+
+export async function sendOrder(orderData) {
+  const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+
+  const payload = {
+    order_number: orderNumber,
+    order_date: dateStr,
+    salesman_name: orderData.salesman_name || "Field Salesman",
+    salesman_phone: orderData.salesman_phone || "",
+    beat_name: orderData.beat_name || "",
+    retailer_id: orderData.retailer_id || null,
+    retailer_name: orderData.retailer_name || "Retailer",
+    retailer_phone: orderData.retailer_phone || "",
+    retailer_address: orderData.retailer_address || "",
+    notes: orderData.notes || "",
+    subtotal_taxable: orderData.subtotal_taxable,
+    total_cgst: orderData.total_cgst,
+    total_sgst: orderData.total_sgst,
+    total_igst: 0,
+    grand_total: orderData.grand_total,
+    items: orderData.items,
+    created_at: now.toISOString()
+  };
+
+  let dispatched = false;
+
+  try {
+    // Attempt write to Firestore transient queue
+    const orderDocRef = doc(db, "transient_orders", orderNumber);
+    await setDoc(orderDocRef, payload);
+    dispatched = true;
+    console.log("[OrderService] Order", orderNumber, "written to transient_orders");
+  } catch (err) {
+    console.warn("[OrderService] Cloud dispatch failed (offline mode):", err.message);
+    // Queue locally
+    await enqueueOfflineOrder(payload);
+  }
+
+  // Record in local history for salesman reference
+  await saveRecentOrder({
+    ...payload,
+    status: dispatched ? "Dispatched" : "Queued Offline"
+  });
+
+  return {
+    success: true,
+    orderNumber,
+    isOffline: !dispatched,
+    payload
+  };
+}
+
+async function enqueueOfflineOrder(order) {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    const queue = raw ? JSON.parse(raw) : [];
+    queue.push(order);
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch (e) {
+    console.error("Failed to queue offline order", e);
+  }
+}
+
+export async function flushOfflineQueue() {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    if (!raw) return { flushed: 0 };
+    const queue = JSON.parse(raw);
+    if (!Array.isArray(queue) || queue.length === 0) return { flushed: 0 };
+
+    const remaining = [];
+    let flushedCount = 0;
+
+    for (const order of queue) {
+      try {
+        const orderDocRef = doc(db, "transient_orders", order.order_number);
+        await setDoc(orderDocRef, order);
+        flushedCount++;
+      } catch (err) {
+        remaining.push(order);
+      }
+    }
+
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+    return { flushed: flushedCount, remaining: remaining.length };
+  } catch (e) {
+    return { flushed: 0, error: e.message };
+  }
+}
+
+async function saveRecentOrder(order) {
+  try {
+    const raw = await AsyncStorage.getItem(RECENT_ORDERS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    list.unshift(order);
+    // keep last 50 orders
+    const trimmed = list.slice(0, 50);
+    await AsyncStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error("Failed saving recent order", e);
+  }
+}
+
+export async function getRecentOrders() {
+  try {
+    const raw = await AsyncStorage.getItem(RECENT_ORDERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
