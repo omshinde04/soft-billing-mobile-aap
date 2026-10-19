@@ -1,12 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { db } from "../config/firebase.js";
 import {
   DEFAULT_PRODUCTS,
   DEFAULT_RETAILERS,
   DEFAULT_BEATS,
   DEFAULT_SALESMEN
-} from "../data/mockCatalog";
+} from "../data/mockCatalog.js";
 
 const PRODUCTS_CACHE_KEY = "@soft_billing_catalog_products";
 const RETAILERS_CACHE_KEY = "@soft_billing_catalog_retailers";

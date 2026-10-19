@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { doc, setDoc } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { db } from "../config/firebase.js";
 
 const RECENT_ORDERS_KEY = "@soft_billing_recent_orders";
 const OFFLINE_QUEUE_KEY = "@soft_billing_offline_queue";
