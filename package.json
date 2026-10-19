@@ -19,7 +19,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export -p web",
-    "deploy": "expo export -p web && firebase deploy --only hosting"
+    "deploy": "expo export -p web && npx -y firebase-tools deploy --only hosting"
   },
   "private": true
 }
