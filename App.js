@@ -232,7 +232,8 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.outerContainer}>
+      <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
       {/* Header with Salesman & Beat */}
@@ -374,14 +375,28 @@ export default function App() {
         onSyncOffline={handleSyncOffline}
         isSyncing={isSyncingOffline}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: Platform.OS === "web" ? "#0f172a" : "#f8fafc",
+    alignItems: "center",
+    justifyContent: "center"
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: "#f8fafc"
+    width: "100%",
+    maxWidth: 480,
+    backgroundColor: "#f8fafc",
+    position: "relative",
+    ...(Platform.OS === "web" ? {
+      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
+      overflow: "hidden"
+    } : {})
   },
   searchContainer: {
     paddingHorizontal: 16,

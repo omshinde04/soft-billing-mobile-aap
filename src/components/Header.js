@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
 
 export default function Header({
   salesmen,
@@ -88,7 +88,7 @@ export default function Header({
 const styles = StyleSheet.create({
   headerContainer: {
     backgroundColor: "#0f172a",
-    paddingTop: 45,
+    paddingTop: Platform.OS === "ios" ? 14 : (Platform.OS === "android" ? 38 : 18),
     paddingHorizontal: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
