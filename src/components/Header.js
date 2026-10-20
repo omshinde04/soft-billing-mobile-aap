@@ -2,10 +2,10 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
 
 export default function Header({
-  salesmen,
+  salesmen = [],
   currentSalesman,
   onSelectSalesman,
-  beats,
+  beats = [],
   currentBeat,
   onSelectBeat,
   onOpenRecent,
@@ -13,22 +13,26 @@ export default function Header({
   isRefreshing,
   isOfflineMode,
   onToggleOfflineMode,
-  offlineQueueCount = 0
+  offlineQueueCount = 0,
+  onLogout
 }) {
   return (
     <View style={styles.headerContainer}>
+      {/* Top Brand Bar */}
       <View style={styles.topRow}>
-        <View>
-          <View style={styles.titleRow}>
-            <View style={styles.boltBadge}>
-              <Text style={styles.boltText}>⚡</Text>
-            </View>
-            <Text style={styles.appTitle}>Billing-Soft</Text>
-            <View style={styles.mobileBadge}>
-              <Text style={styles.mobileBadgeText}>FIELD APP</Text>
-            </View>
+        <View style={styles.titleRow}>
+          <View style={styles.boltBadge}>
+            <Text style={styles.boltText}>⚡</Text>
           </View>
-          <Text style={styles.appSubtitle}>FMCG Salesman Order Booking</Text>
+          <View>
+            <View style={styles.titleWithBadge}>
+              <Text style={styles.appTitle}>Billing-Soft</Text>
+              <View style={styles.mobileBadge}>
+                <Text style={styles.mobileBadgeText}>FIELD APP</Text>
+              </View>
+            </View>
+            <Text style={styles.appSubtitle}>FMCG Order Booking</Text>
+          </View>
         </View>
 
         <View style={styles.actionButtons}>
@@ -52,6 +56,7 @@ export default function Header({
           >
             <Text style={styles.iconButtonText}>{isRefreshing ? "⏳" : "🔄"}</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.iconButton, styles.historyButton]}
             onPress={onOpenRecent}
@@ -67,30 +72,51 @@ export default function Header({
         </View>
       </View>
 
-      {/* Salesman & Beat Pill Bar */}
-      <View style={styles.filterRow}>
-        {/* Salesman selector */}
-        <View style={styles.selectorPill}>
-          <Text style={styles.pillLabel}>Salesman:</Text>
-          <TouchableOpacity
-            onPress={() => {
-              const idx = salesmen.findIndex(s => s.id === currentSalesman?.id);
-              const next = salesmen[(idx + 1) % salesmen.length];
-              onSelectSalesman(next);
-            }}
-            style={styles.pillTouch}
-          >
-            <Text style={styles.pillValue} numberOfLines={1}>
-              {currentSalesman?.name || "Select"} ▾
-            </Text>
-          </TouchableOpacity>
-        </View>
+      {/* Logged-in Salesman Profile Card */}
+      {currentSalesman && (
+        <View style={styles.salesmanProfileCard}>
+          <View style={styles.profileLeft}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {currentSalesman.name ? currentSalesman.name.charAt(0).toUpperCase() : "S"}
+              </Text>
+            </View>
+            <View style={styles.salesmanInfo}>
+              <View style={styles.salesmanNameRow}>
+                <Text style={styles.salesmanName} numberOfLines={1}>
+                  {currentSalesman.name}
+                </Text>
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>SALESMAN</Text>
+                </View>
+              </View>
+              <Text style={styles.salesmanPhone}>
+                📞 {currentSalesman.phone || "No phone"} • 🆔 {currentSalesman.login_id || "ID"}
+              </Text>
+            </View>
+          </View>
 
-        {/* Beat selector */}
+          {/* Logout Button */}
+          {onLogout && (
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={onLogout}
+              activeOpacity={0.7}
+              title="Logout Salesman"
+            >
+              <Text style={styles.logoutButtonText}>🚪 Logout</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Route & Beat Selector Row */}
+      <View style={styles.filterRow}>
         <View style={styles.selectorPill}>
-          <Text style={styles.pillLabel}>Beat:</Text>
+          <Text style={styles.pillLabel}>📍 Beat / Route:</Text>
           <TouchableOpacity
             onPress={() => {
+              if (beats.length === 0) return;
               const idx = beats.indexOf(currentBeat);
               const next = beats[(idx + 1) % beats.length];
               onSelectBeat(next);
@@ -98,7 +124,7 @@ export default function Header({
             style={styles.pillTouch}
           >
             <Text style={styles.pillValue} numberOfLines={1}>
-              {currentBeat || "All Beats"} ▾
+              {currentBeat || "All Market Beats"} ▾
             </Text>
           </TouchableOpacity>
         </View>
@@ -110,9 +136,9 @@ export default function Header({
 const styles = StyleSheet.create({
   headerContainer: {
     backgroundColor: "#0f172a",
-    paddingTop: Platform.OS === "ios" ? 14 : (Platform.OS === "android" ? 38 : 18),
+    paddingTop: Platform.OS === "ios" ? 14 : (Platform.OS === "android" ? 38 : 16),
     paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#1e293b"
   },
@@ -120,17 +146,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12
+    marginBottom: 10
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center"
   },
+  titleWithBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
   boltBadge: {
     backgroundColor: "#f59e0b",
-    width: 26,
-    height: 26,
-    borderRadius: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 7,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 8
@@ -140,19 +171,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold"
   },
   appTitle: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "900",
     color: "#ffffff",
     letterSpacing: -0.3
   },
   mobileBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.2)",
+    backgroundColor: "rgba(59, 130, 246, 0.25)",
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 1.5,
     borderRadius: 4,
-    marginLeft: 8,
     borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.4)"
+    borderColor: "rgba(59, 130, 246, 0.45)"
   },
   mobileBadgeText: {
     color: "#60a5fa",
@@ -161,9 +191,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5
   },
   appSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#94a3b8",
-    marginTop: 2
+    marginTop: 1
   },
   actionButtons: {
     flexDirection: "row",
@@ -172,7 +202,7 @@ const styles = StyleSheet.create({
   },
   modeButton: {
     paddingHorizontal: 8,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1
   },
@@ -196,8 +226,8 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     backgroundColor: "#1e293b",
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -209,7 +239,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e293b"
   },
   iconButtonText: {
-    fontSize: 15
+    fontSize: 14
   },
   badgeCount: {
     position: "absolute",
@@ -227,9 +257,82 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "900"
   },
-  filterRow: {
+  salesmanProfileCard: {
+    backgroundColor: "rgba(30, 41, 59, 0.85)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: "row",
-    gap: 8
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+    marginBottom: 8
+  },
+  profileLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 8
+  },
+  avatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#3b82f6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8
+  },
+  avatarText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  salesmanInfo: {
+    flex: 1
+  },
+  salesmanNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  salesmanName: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#ffffff"
+  },
+  roleBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4
+  },
+  roleBadgeText: {
+    color: "#34d399",
+    fontSize: 8,
+    fontWeight: "800"
+  },
+  salesmanPhone: {
+    fontSize: 10,
+    color: "#94a3b8",
+    marginTop: 1
+  },
+  logoutButton: {
+    backgroundColor: "#334155",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#475569"
+  },
+  logoutButtonText: {
+    color: "#f87171",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  filterRow: {
+    flexDirection: "row"
   },
   selectorPill: {
     flex: 1,
@@ -245,7 +348,7 @@ const styles = StyleSheet.create({
   pillLabel: {
     fontSize: 11,
     color: "#94a3b8",
-    marginRight: 4,
+    marginRight: 6,
     fontWeight: "600"
   },
   pillTouch: {

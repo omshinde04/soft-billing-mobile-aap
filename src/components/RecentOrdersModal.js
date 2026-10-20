@@ -12,9 +12,10 @@ import {
 export default function RecentOrdersModal({
   visible,
   onClose,
-  orders,
+  orders = [],
   onSyncOffline,
-  isSyncing
+  isSyncing,
+  onEditOrder
 }) {
   return (
     <Modal
@@ -60,49 +61,100 @@ export default function RecentOrdersModal({
             data={orders}
             keyExtractor={(item, idx) => item.order_number || String(idx)}
             contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
-              <View style={styles.orderCard}>
-                <View style={styles.orderTop}>
-                  <Text style={styles.orderNum}>#{item.order_number}</Text>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      item.status === "Dispatched"
-                        ? styles.statusDispatched
-                        : styles.statusOffline
-                    ]}
-                  >
-                    <Text
+            renderItem={({ item }) => {
+              const isOffline = item.status === "Offline Queued";
+              const isDispatched = item.status === "Dispatched";
+              const isRevised = item.status === "Revised / Re-sent";
+
+              return (
+                <View style={styles.orderCard}>
+                  <View style={styles.orderTop}>
+                    <View style={styles.orderNumRow}>
+                      <Text style={styles.orderNum}>#{item.order_number}</Text>
+                      {item.is_edited && (
+                        <View style={styles.editedBadge}>
+                          <Text style={styles.editedBadgeText}>EDITED</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View
                       style={[
-                        styles.statusText,
-                        item.status === "Dispatched"
-                          ? styles.statusTextDispatched
-                          : styles.statusTextOffline
+                        styles.statusPill,
+                        isDispatched
+                          ? styles.statusDispatched
+                          : isOffline
+                          ? styles.statusOffline
+                          : styles.statusRevised
                       ]}
                     >
-                      {item.status || "Dispatched"}
+                      <Text
+                        style={[
+                          styles.statusText,
+                          isDispatched
+                            ? styles.statusTextDispatched
+                            : isOffline
+                            ? styles.statusTextOffline
+                            : styles.statusTextRevised
+                        ]}
+                      >
+                        {item.status || "Dispatched"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.shopName}>{item.retailer_name}</Text>
+
+                  <View style={styles.metaRow}>
+                    <Text style={styles.metaText}>
+                      👤 {item.salesman_name} • 📍 {item.beat_name || "Market"}
                     </Text>
+                    {item.notes ? (
+                      <Text style={styles.notesText} numberOfLines={1}>
+                        💬 {item.notes}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  {/* Items summary list */}
+                  {Array.isArray(item.items) && item.items.length > 0 && (
+                    <View style={styles.itemsPreview}>
+                      {item.items.slice(0, 3).map((it, idx) => (
+                        <Text key={idx} style={styles.previewLine} numberOfLines={1}>
+                          • {it.product_name || it.name} × {it.quantity}
+                        </Text>
+                      ))}
+                      {item.items.length > 3 && (
+                        <Text style={styles.moreItemsText}>
+                          + {item.items.length - 3} more items
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  <View style={styles.bottomRow}>
+                    <View>
+                      <Text style={styles.itemCountText}>
+                        {item.items?.length || 0} Products
+                      </Text>
+                      <Text style={styles.grandTotalText}>
+                        ₹{Number(item.grand_total || 0).toFixed(2)}
+                      </Text>
+                    </View>
+
+                    {/* Edit Order Action */}
+                    {onEditOrder && (
+                      <TouchableOpacity
+                        style={styles.editBtn}
+                        onPress={() => onEditOrder(item)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.editBtnText}>✏️ Edit & Re-send</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
-
-                <Text style={styles.shopName}>{item.retailer_name}</Text>
-
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaText}>
-                    👤 {item.salesman_name} • 📍 {item.beat_name || "Market"}
-                  </Text>
-                </View>
-
-                <View style={styles.bottomRow}>
-                  <Text style={styles.itemCountText}>
-                    {item.items?.length || 0} Products
-                  </Text>
-                  <Text style={styles.grandTotalText}>
-                    ₹{Number(item.grand_total || 0).toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-            )}
+              );
+            }}
             ListEmptyComponent={
               <View style={styles.emptyView}>
                 <Text style={styles.emptyIcon}>📦</Text>
@@ -205,7 +257,12 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#e2e8f0"
+    borderColor: "#e2e8f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1
   },
   orderTop: {
     flexDirection: "row",
@@ -213,10 +270,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4
   },
+  orderNumRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
   orderNum: {
     fontSize: 14,
     fontWeight: "800",
     color: "#2563eb"
+  },
+  editedBadge: {
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4
+  },
+  editedBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#b45309"
   },
   statusPill: {
     paddingHorizontal: 8,
@@ -229,6 +302,9 @@ const styles = StyleSheet.create({
   statusOffline: {
     backgroundColor: "#fef3c7"
   },
+  statusRevised: {
+    backgroundColor: "#f1f5f9"
+  },
   statusText: {
     fontSize: 10,
     fontWeight: "700"
@@ -239,6 +315,9 @@ const styles = StyleSheet.create({
   statusTextOffline: {
     color: "#d97706"
   },
+  statusTextRevised: {
+    color: "#64748b"
+  },
   shopName: {
     fontSize: 14,
     fontWeight: "700",
@@ -246,11 +325,33 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   metaRow: {
-    marginBottom: 8
+    marginBottom: 6
   },
   metaText: {
     fontSize: 11,
     color: "#64748b"
+  },
+  notesText: {
+    fontSize: 11,
+    color: "#0284c7",
+    fontStyle: "italic",
+    marginTop: 2
+  },
+  itemsPreview: {
+    backgroundColor: "#f8fafc",
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 8
+  },
+  previewLine: {
+    fontSize: 11,
+    color: "#475569",
+    marginBottom: 2
+  },
+  moreItemsText: {
+    fontSize: 10,
+    color: "#94a3b8",
+    fontStyle: "italic"
   },
   bottomRow: {
     flexDirection: "row",
@@ -261,13 +362,26 @@ const styles = StyleSheet.create({
     paddingTop: 8
   },
   itemCountText: {
-    fontSize: 12,
-    color: "#475569"
+    fontSize: 11,
+    color: "#64748b"
   },
   grandTotalText: {
     fontSize: 15,
     fontWeight: "800",
     color: "#16a34a"
+  },
+  editBtn: {
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  editBtnText: {
+    color: "#2563eb",
+    fontSize: 12,
+    fontWeight: "700"
   },
   emptyView: {
     paddingVertical: 48,

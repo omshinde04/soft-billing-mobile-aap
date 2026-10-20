@@ -7,21 +7,21 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  ActivityIndicator,
-  Alert
+  ActivityIndicator
 } from "react-native";
 
 export default function CartModal({
   visible,
   onClose,
-  cartItems,
+  cartItems = [],
   retailer,
   salesman,
   beat,
   totals,
   onUpdateQty,
   onSubmitOrder,
-  isSubmitting
+  isSubmitting,
+  editingOrder = null
 }) {
   const [notes, setNotes] = useState("");
 
@@ -49,7 +49,9 @@ export default function CartModal({
           {/* Header */}
           <View style={styles.sheetHeader}>
             <View>
-              <Text style={styles.sheetTitle}>Review & Send Order</Text>
+              <Text style={styles.sheetTitle}>
+                {editingOrder ? "✏️ Edit & Re-send Order" : "Review & Send Order"}
+              </Text>
               <Text style={styles.sheetSubtitle}>
                 {cartItems.length} {cartItems.length === 1 ? "Item" : "Items"} • {retailer?.shop_name || "No Retailer"}
               </Text>
@@ -58,6 +60,18 @@ export default function CartModal({
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Edit Order Warning Notice if revising an existing order */}
+          {editingOrder && (
+            <View style={styles.revisingBanner}>
+              <Text style={styles.revisingBannerTitle}>
+                ⚠️ Revising Order #{editingOrder.order_number}
+              </Text>
+              <Text style={styles.revisingBannerSub}>
+                Any modifications made here will replace the previous order when submitted.
+              </Text>
+            </View>
+          )}
 
           <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
             {/* Retailer Card */}
@@ -75,7 +89,10 @@ export default function CartModal({
 
             {/* Items List */}
             <View style={styles.itemsSection}>
-              <Text style={styles.sectionHeader}>ORDER ITEMS</Text>
+              <View style={styles.itemsHeaderRow}>
+                <Text style={styles.sectionHeader}>ORDER ITEMS</Text>
+                <Text style={styles.itemsHeaderHint}>Tap quantity box to type directly</Text>
+              </View>
               {cartItems.map((item, index) => {
                 const rate = Number(item.selling_rate || item.rate || 0);
                 const lineTaxable = rate * item.quantity;
@@ -98,7 +115,21 @@ export default function CartModal({
                         >
                           <Text style={styles.miniBtnText}>−</Text>
                         </TouchableOpacity>
-                        <Text style={styles.miniQtyText}>{item.quantity}</Text>
+
+                        {/* Direct Numeric Input inside Cart */}
+                        <TextInput
+                          style={styles.miniQtyInput}
+                          keyboardType="numeric"
+                          selectTextOnFocus
+                          defaultValue={String(item.quantity)}
+                          onEndEditing={(e) => {
+                            const val = parseInt(e.nativeEvent.text, 10);
+                            if (!isNaN(val) && val >= 0) {
+                              onUpdateQty(item.id, val);
+                            }
+                          }}
+                        />
+
                         <TouchableOpacity
                           style={[styles.miniBtn, styles.miniAddBtn]}
                           onPress={() => onUpdateQty(item.id, item.quantity + 1)}
@@ -168,7 +199,9 @@ export default function CartModal({
                 <>
                   <Text style={styles.sendBtnIcon}>⚡</Text>
                   <Text style={styles.sendBtnText}>
-                    SEND ORDER TO DESKTOP (₹{totals.grand_total.toFixed(2)})
+                    {editingOrder
+                      ? `RE-SUBMIT REVISED ORDER (₹${totals.grand_total.toFixed(2)})`
+                      : `SEND ORDER TO DESKTOP (₹${totals.grand_total.toFixed(2)})`}
                   </Text>
                 </>
               )}
@@ -226,6 +259,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#64748b"
   },
+  revisingBanner: {
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#fde68a"
+  },
+  revisingBannerTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#92400e"
+  },
+  revisingBannerSub: {
+    fontSize: 11,
+    color: "#b45309",
+    marginTop: 2
+  },
   scrollArea: {
     flex: 1
   },
@@ -276,12 +326,22 @@ const styles = StyleSheet.create({
   itemsSection: {
     marginBottom: 16
   },
+  itemsHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8
+  },
   sectionHeader: {
     fontSize: 11,
     fontWeight: "800",
     color: "#64748b",
-    letterSpacing: 0.5,
-    marginBottom: 8
+    letterSpacing: 0.5
+  },
+  itemsHeaderHint: {
+    fontSize: 10,
+    color: "#3b82f6",
+    fontWeight: "600"
   },
   itemRow: {
     flexDirection: "row",
@@ -315,12 +375,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#cbd5e1",
-    marginBottom: 4
+    marginBottom: 4,
+    overflow: "hidden"
   },
   miniBtn: {
     backgroundColor: "#f1f5f9",
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -337,12 +398,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#ffffff"
   },
-  miniQtyText: {
-    minWidth: 26,
+  miniQtyInput: {
+    minWidth: 34,
+    height: 28,
     textAlign: "center",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
-    color: "#0f172a"
+    color: "#0f172a",
+    backgroundColor: "#f8fafc",
+    paddingHorizontal: 2
   },
   lineTotal: {
     fontSize: 12,

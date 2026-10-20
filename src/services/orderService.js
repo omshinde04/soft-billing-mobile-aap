@@ -220,3 +220,29 @@ export async function getRecentOrders() {
     return [];
   }
 }
+
+export async function markOrderAsRevised(originalOrderNumber, newOrderNumber) {
+  try {
+    const raw = await AsyncStorage.getItem(RECENT_ORDERS_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      const updated = list.map(o => {
+        if (o.order_number === originalOrderNumber) {
+          return { ...o, status: "Revised / Re-sent", is_edited: true, revised_to: newOrderNumber };
+        }
+        return o;
+      });
+      await AsyncStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(updated));
+    }
+
+    // Also remove original order from offline queue if it hadn't synced yet
+    const queueRaw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    if (queueRaw) {
+      const q = JSON.parse(queueRaw);
+      const filteredQ = q.filter(o => o.order_number !== originalOrderNumber);
+      await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filteredQ));
+    }
+  } catch (e) {
+    console.warn("Could not mark order as revised:", e);
+  }
+}

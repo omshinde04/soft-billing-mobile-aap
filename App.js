@@ -10,40 +10,53 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
-  Alert
+  Alert,
+  ActivityIndicator
 } from "react-native";
 import Header from "./src/components/Header";
+import LoginScreen from "./src/components/LoginScreen";
 import RetailerSelector from "./src/components/RetailerSelector";
 import ProductCard from "./src/components/ProductCard";
 import CartModal from "./src/components/CartModal";
 import OrderSuccessModal from "./src/components/OrderSuccessModal";
 import RecentOrdersModal from "./src/components/RecentOrdersModal";
-import { fetchCatalogFromCloud } from "./src/services/catalogService";
+import {
+  fetchCatalogFromCloud,
+  getActiveSession,
+  clearActiveSession
+} from "./src/services/catalogService";
 import {
   calculateOrderTotals,
   sendOrder,
   flushOfflineQueue,
   getRecentOrders,
   setSimulatedOfflineMode,
-  getOfflineQueueCount
+  getOfflineQueueCount,
+  markOrderAsRevised
 } from "./src/services/orderService";
 
 export default function App() {
-  // Master state
-  const [salesmen, setSalesmen] = useState([]);
+  // Authentication & Session
   const [currentSalesman, setCurrentSalesman] = useState(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Catalog Master state
+  const [salesmen, setSalesmen] = useState([]);
   const [beats, setBeats] = useState([]);
   const [currentBeat, setCurrentBeat] = useState("");
   const [retailers, setRetailers] = useState([]);
   const [selectedRetailer, setSelectedRetailer] = useState(null);
   const [products, setProducts] = useState([]);
 
-  // Filtering
+  // Filtering & Search
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
 
   // Cart state: map of productId -> quantity
   const [cartQuantities, setCartQuantities] = useState({});
+
+  // Order Editing state
+  const [editingOrder, setEditingOrder] = useState(null);
 
   // Modals
   const [cartModalVisible, setCartModalVisible] = useState(false);
@@ -51,7 +64,7 @@ export default function App() {
   const [orderResult, setOrderResult] = useState(null);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
 
-  // Loading & status
+  // Network & Sync status
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingOffline, setIsSyncingOffline] = useState(false);
@@ -59,11 +72,28 @@ export default function App() {
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
 
-  // Initial load
+  // 1. Initial Load: Auth check and catalog prefetch
   useEffect(() => {
-    loadCatalogData();
-    loadRecentOrdersList();
-    checkQueueCount();
+    async function init() {
+      try {
+        const session = await getActiveSession();
+        if (session) {
+          setCurrentSalesman(session);
+          if (session.assigned_beat) {
+            setCurrentBeat(session.assigned_beat);
+          }
+        }
+      } catch (err) {
+        console.warn("Session check error:", err);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+
+      await loadCatalogData();
+      await loadRecentOrdersList();
+      await checkQueueCount();
+    }
+    init();
   }, []);
 
   const checkQueueCount = async () => {
@@ -89,11 +119,12 @@ export default function App() {
     setIsOfflineMode(next);
     setSimulatedOfflineMode(next);
     if (!next) {
-      // Reconnected! Immediately beam queued orders
+      // Reconnected! Immediately flush any queued orders
       await triggerAutoSync();
     }
   };
 
+  // Periodic auto-sync when online
   useEffect(() => {
     checkQueueCount();
     const interval = setInterval(() => {
@@ -109,18 +140,20 @@ export default function App() {
     try {
       const data = await fetchCatalogFromCloud();
       setSalesmen(data.salesmen || []);
-      if (!currentSalesman && data.salesmen?.length > 0) {
-        setCurrentSalesman(data.salesmen[0]);
-      }
       setBeats(data.beats || []);
+      setRetailers(data.retailers || []);
+      setProducts(data.products || []);
+
+      // If no beat selected, use salesman's assigned beat or first available
       if (!currentBeat && data.beats?.length > 0) {
         setCurrentBeat(data.beats[0]);
       }
-      setRetailers(data.retailers || []);
+
+      // If no retailer selected, pick the first retailer on beat
       if (!selectedRetailer && data.retailers?.length > 0) {
-        setSelectedRetailer(data.retailers[0]);
+        const matching = data.retailers.find(r => !currentBeat || r.beat_name === currentBeat);
+        setSelectedRetailer(matching || data.retailers[0]);
       }
-      setProducts(data.products || []);
     } catch (err) {
       console.error("Failed loading catalog", err);
     } finally {
@@ -133,6 +166,42 @@ export default function App() {
     setRecentOrders(list);
   };
 
+  // Auth Handlers
+  const handleLoginSuccess = (salesman) => {
+    setCurrentSalesman(salesman);
+    if (salesman.assigned_beat) {
+      setCurrentBeat(salesman.assigned_beat);
+      const retailerOnBeat = retailers.find(r => r.beat_name === salesman.assigned_beat);
+      if (retailerOnBeat) {
+        setSelectedRetailer(retailerOnBeat);
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    const performLogout = async () => {
+      await clearActiveSession();
+      setCurrentSalesman(null);
+      setCartQuantities({});
+      setEditingOrder(null);
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Logout from Salesman Account?")) {
+        performLogout();
+      }
+    } else {
+      Alert.alert(
+        "Logout",
+        "Are you sure you want to log out from this device?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Logout", style: "destructive", onPress: performLogout }
+        ]
+      );
+    }
+  };
+
   // Switch beat also selects first retailer of that beat
   const handleSelectBeat = (beat) => {
     setCurrentBeat(beat);
@@ -142,7 +211,7 @@ export default function App() {
     }
   };
 
-  // Stepper handlers
+  // Stepper & Direct Numeric Quantity handlers
   const handleIncrement = (productId) => {
     setCartQuantities(prev => ({
       ...prev,
@@ -165,8 +234,10 @@ export default function App() {
     });
   };
 
+  // Direct Numeric Input Handler (e.g. typing 10 or 50)
   const handleUpdateQty = (productId, qty) => {
-    if (qty <= 0) {
+    const num = Number(qty);
+    if (isNaN(num) || num <= 0) {
       setCartQuantities(prev => {
         const next = { ...prev };
         delete next[productId];
@@ -175,9 +246,54 @@ export default function App() {
     } else {
       setCartQuantities(prev => ({
         ...prev,
-        [productId]: qty
+        [productId]: num
       }));
     }
+  };
+
+  // Edit Order Handler
+  const handleEditOrder = (order) => {
+    // 1. Match retailer
+    const matchedRetailer =
+      retailers.find(r => String(r.id) === String(order.retailer_id)) ||
+      retailers.find(r => r.shop_name === order.retailer_name);
+    if (matchedRetailer) {
+      setSelectedRetailer(matchedRetailer);
+    }
+
+    // 2. Set beat
+    if (order.beat_name) {
+      setCurrentBeat(order.beat_name);
+    }
+
+    // 3. Populate cart quantities
+    const newCart = {};
+    if (Array.isArray(order.items)) {
+      order.items.forEach(it => {
+        const prodId = it.product_id || it.id;
+        if (prodId) {
+          newCart[prodId] = Number(it.quantity || 1);
+        }
+      });
+    }
+    setCartQuantities(newCart);
+
+    // 4. Mark editing state
+    setEditingOrder(order);
+    setRecentModalVisible(false);
+
+    // Alert user that order has been loaded into cart
+    const msg = `Order #${order.order_number} loaded into cart! You can now adjust quantities, add/remove items, and re-submit.`;
+    if (Platform.OS === "web") {
+      alert(msg);
+    } else {
+      Alert.alert("Order Ready to Edit", msg);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingOrder(null);
+    setCartQuantities({});
   };
 
   // Categories list
@@ -224,10 +340,14 @@ export default function App() {
     return Object.values(cartQuantities).reduce((acc, q) => acc + q, 0);
   }, [cartQuantities]);
 
-  // Submit order handler
+  // Submit order handler (handles both fresh and revised orders)
   const handleSubmitOrder = async ({ notes }) => {
     setIsSubmitting(true);
     try {
+      const finalNotes = editingOrder
+        ? (notes ? `${notes} | ` : "") + `[Revised Order from #${editingOrder.order_number}]`
+        : notes;
+
       const result = await sendOrder({
         salesman_name: currentSalesman?.name,
         salesman_phone: currentSalesman?.phone,
@@ -236,13 +356,19 @@ export default function App() {
         retailer_name: selectedRetailer?.shop_name,
         retailer_phone: selectedRetailer?.phone,
         retailer_address: selectedRetailer?.address,
-        notes,
+        notes: finalNotes,
         subtotal_taxable: orderTotals.subtotal_taxable,
         total_cgst: orderTotals.total_cgst,
         total_sgst: orderTotals.total_sgst,
         grand_total: orderTotals.grand_total,
         items: orderTotals.items
       });
+
+      // If we were revising a previous order, mark the old one as revised
+      if (editingOrder) {
+        await markOrderAsRevised(editingOrder.order_number, result.orderNumber);
+        setEditingOrder(null);
+      }
 
       // Clear cart
       setCartQuantities({});
@@ -253,8 +379,8 @@ export default function App() {
       setSuccessModalVisible(true);
 
       // Refresh recent orders & queue
-      loadRecentOrdersList();
-      checkQueueCount();
+      await loadRecentOrdersList();
+      await checkQueueCount();
     } catch (err) {
       alert("Failed submitting order: " + err.message);
     } finally {
@@ -266,8 +392,9 @@ export default function App() {
     setIsSyncingOffline(true);
     try {
       const res = await flushOfflineQueue();
-      alert("Offline sync completed! Pushed " + res.flushed + " orders to cloud.");
-      loadRecentOrdersList();
+      alert("Offline sync completed! Pushed " + res.flushed + " orders to Desktop.");
+      await loadRecentOrdersList();
+      await checkQueueCount();
     } catch (e) {
       alert("Sync error: " + e.message);
     } finally {
@@ -275,177 +402,230 @@ export default function App() {
     }
   };
 
+  // If checking authentication session on launch
+  if (isCheckingAuth) {
+    return (
+      <View style={[styles.outerContainer, { justifyContent: "center" }]}>
+        <ActivityIndicator size="large" color="#f59e0b" />
+        <Text style={{ color: "#ffffff", marginTop: 12, fontWeight: "700" }}>
+          Loading Billing-Soft...
+        </Text>
+      </View>
+    );
+  }
+
+  // If salesman not logged in, render LoginScreen
+  if (!currentSalesman) {
+    return (
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+          <LoginScreen
+            salesmen={salesmen}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      {/* Header with Salesman & Beat */}
-      <Header
-        salesmen={salesmen}
-        currentSalesman={currentSalesman}
-        onSelectSalesman={setCurrentSalesman}
-        beats={beats}
-        currentBeat={currentBeat}
-        onSelectBeat={handleSelectBeat}
-        onOpenRecent={() => setRecentModalVisible(true)}
-        onRefreshCatalog={loadCatalogData}
-        isRefreshing={isRefreshing}
-        isOfflineMode={isOfflineMode}
-        onToggleOfflineMode={handleToggleOfflineMode}
-        offlineQueueCount={offlineQueueCount}
-      />
+        {/* Header with Salesman Profile, Beat Selector & Logout */}
+        <Header
+          salesmen={salesmen}
+          currentSalesman={currentSalesman}
+          onSelectSalesman={setCurrentSalesman}
+          beats={beats}
+          currentBeat={currentBeat}
+          onSelectBeat={handleSelectBeat}
+          onOpenRecent={() => setRecentModalVisible(true)}
+          onRefreshCatalog={loadCatalogData}
+          isRefreshing={isRefreshing}
+          isOfflineMode={isOfflineMode}
+          onToggleOfflineMode={handleToggleOfflineMode}
+          offlineQueueCount={offlineQueueCount}
+          onLogout={handleLogout}
+        />
 
-      {/* Offline Alert Banner */}
-      {offlineQueueCount > 0 && (
-        <View style={styles.offlineBanner}>
-          <Text style={styles.offlineBannerText}>
-            📦 {offlineQueueCount} {offlineQueueCount === 1 ? "order" : "orders"} stored in phone (Basement Mode)
-          </Text>
-          <TouchableOpacity
-            style={styles.syncNowBtn}
-            onPress={async () => {
-              setIsSyncingOffline(true);
-              const res = await flushOfflineQueue();
-              setIsSyncingOffline(false);
-              await checkQueueCount();
-              await loadRecentOrdersList();
-              if (res.flushed > 0) {
-                alert("⚡ Sent " + res.flushed + " offline orders to Desktop!");
-              }
-            }}
-          >
-            <Text style={styles.syncNowBtnText}>SYNC NOW ⚡</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Retailer Selector Bar */}
-      <RetailerSelector
-        retailers={retailers}
-        selectedRetailer={selectedRetailer}
-        onSelectRetailer={setSelectedRetailer}
-        currentBeat={currentBeat}
-      />
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search biscuits, chocolates, soaps, SKU..."
-            placeholderTextColor="#94a3b8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Text style={styles.clearSearchText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Category Pills */}
-      <View style={styles.categoryBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-          {categories.map(cat => {
-            const isSelected = selectedCategory === cat;
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.categoryPill, isSelected && styles.activeCategoryPill]}
-                onPress={() => setSelectedCategory(cat)}
-              >
-                <Text style={[styles.categoryText, isSelected && styles.activeCategoryText]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Product Catalog List */}
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={item => String(item.id)}
-        contentContainerStyle={[
-          styles.listContainer,
-          cartItems.length > 0 && { paddingBottom: 100 }
-        ]}
-        renderItem={({ item }) => (
-          <ProductCard
-            product={item}
-            quantity={cartQuantities[item.id] || 0}
-            onIncrement={() => handleIncrement(item.id)}
-            onDecrement={() => handleDecrement(item.id)}
-          />
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyTitle}>No matching products</Text>
-            <Text style={styles.emptySubtitle}>Try searching for another FMCG brand or category.</Text>
-          </View>
-        }
-      />
-
-      {/* Floating Bottom Cart Bar */}
-      {cartItems.length > 0 && (
-        <View style={styles.floatingCartBar}>
-          <View style={styles.cartBarInfo}>
-            <View style={styles.cartCountBadge}>
-              <Text style={styles.cartCountText}>{totalCartCount}</Text>
-            </View>
-            <View>
-              <Text style={styles.cartBarLabel}>
-                {cartItems.length} {cartItems.length === 1 ? "Product" : "Products"} Added
+        {/* Editing Order Notice Banner */}
+        {editingOrder && (
+          <View style={styles.editingBanner}>
+            <View style={styles.editingBannerLeft}>
+              <Text style={styles.editingBannerTitle}>
+                ✏️ Revising Order #{editingOrder.order_number}
               </Text>
-              <Text style={styles.cartBarTotal}>₹{orderTotals.grand_total.toFixed(2)}</Text>
+              <Text style={styles.editingBannerSub}>
+                {editingOrder.retailer_name} • Make changes & send
+              </Text>
             </View>
+            <TouchableOpacity
+              style={styles.cancelEditBtn}
+              onPress={handleCancelEdit}
+            >
+              <Text style={styles.cancelEditBtnText}>✕ Cancel</Text>
+            </TouchableOpacity>
           </View>
+        )}
 
-          <TouchableOpacity
-            style={styles.viewCartButton}
-            onPress={() => setCartModalVisible(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.viewCartText}>VIEW ORDER ⚡</Text>
-          </TouchableOpacity>
+        {/* Offline Alert Banner */}
+        {offlineQueueCount > 0 && (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineBannerText}>
+              📦 {offlineQueueCount} {offlineQueueCount === 1 ? "order" : "orders"} stored in phone (Basement Mode)
+            </Text>
+            <TouchableOpacity
+              style={styles.syncNowBtn}
+              onPress={async () => {
+                setIsSyncingOffline(true);
+                const res = await flushOfflineQueue();
+                setIsSyncingOffline(false);
+                await checkQueueCount();
+                await loadRecentOrdersList();
+                if (res.flushed > 0) {
+                  alert("⚡ Sent " + res.flushed + " offline orders to Desktop!");
+                }
+              }}
+            >
+              <Text style={styles.syncNowBtnText}>SYNC NOW ⚡</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Retailer Selector Bar */}
+        <RetailerSelector
+          retailers={retailers}
+          selectedRetailer={selectedRetailer}
+          onSelectRetailer={setSelectedRetailer}
+          currentBeat={currentBeat}
+        />
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBox}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search biscuits, chocolates, soaps, SKU..."
+              placeholderTextColor="#94a3b8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <Text style={styles.clearSearchText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      )}
 
-      {/* Review & Submit Cart Modal */}
-      <CartModal
-        visible={cartModalVisible}
-        onClose={() => setCartModalVisible(false)}
-        cartItems={cartItems}
-        retailer={selectedRetailer}
-        salesman={currentSalesman}
-        beat={currentBeat}
-        totals={orderTotals}
-        onUpdateQty={handleUpdateQty}
-        onSubmitOrder={handleSubmitOrder}
-        isSubmitting={isSubmitting}
-      />
+        {/* Category Pills */}
+        <View style={styles.categoryBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+            {categories.map(cat => {
+              const isSelected = selectedCategory === cat;
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.categoryPill, isSelected && styles.activeCategoryPill]}
+                  onPress={() => setSelectedCategory(cat)}
+                >
+                  <Text style={[styles.categoryText, isSelected && styles.activeCategoryText]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
 
-      {/* Success Celebration Modal */}
-      <OrderSuccessModal
-        visible={successModalVisible}
-        onClose={() => setSuccessModalVisible(false)}
-        result={orderResult}
-      />
+        {/* Product Catalog List with Direct Quantity Input */}
+        <FlatList
+          data={filteredProducts}
+          keyExtractor={item => String(item.id)}
+          contentContainerStyle={[
+            styles.listContainer,
+            cartItems.length > 0 && { paddingBottom: 100 }
+          ]}
+          renderItem={({ item }) => (
+            <ProductCard
+              product={item}
+              quantity={cartQuantities[item.id] || 0}
+              onIncrement={() => handleIncrement(item.id)}
+              onDecrement={() => handleDecrement(item.id)}
+              onSetQuantity={handleUpdateQty}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>🔍</Text>
+              <Text style={styles.emptyTitle}>No matching products</Text>
+              <Text style={styles.emptySubtitle}>Try searching for another FMCG brand or category.</Text>
+            </View>
+          }
+        />
 
-      {/* Recent Orders Modal */}
-      <RecentOrdersModal
-        visible={recentModalVisible}
-        onClose={() => setRecentModalVisible(false)}
-        orders={recentOrders}
-        onSyncOffline={handleSyncOffline}
-        isSyncing={isSyncingOffline}
-      />
+        {/* Floating Bottom Cart Bar */}
+        {cartItems.length > 0 && (
+          <View style={styles.floatingCartBar}>
+            <View style={styles.cartBarInfo}>
+              <View style={styles.cartCountBadge}>
+                <Text style={styles.cartCountText}>{totalCartCount}</Text>
+              </View>
+              <View>
+                <Text style={styles.cartBarLabel}>
+                  {cartItems.length} {cartItems.length === 1 ? "Product" : "Products"} Added
+                </Text>
+                <Text style={styles.cartBarTotal}>₹{orderTotals.grand_total.toFixed(2)}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.viewCartButton}
+              onPress={() => setCartModalVisible(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.viewCartText}>
+                {editingOrder ? "REVIEW REVISION ⚡" : "VIEW ORDER ⚡"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Review & Submit Cart Modal */}
+        <CartModal
+          visible={cartModalVisible}
+          onClose={() => setCartModalVisible(false)}
+          cartItems={cartItems}
+          retailer={selectedRetailer}
+          salesman={currentSalesman}
+          beat={currentBeat}
+          totals={orderTotals}
+          onUpdateQty={handleUpdateQty}
+          onSubmitOrder={handleSubmitOrder}
+          isSubmitting={isSubmitting}
+          editingOrder={editingOrder}
+        />
+
+        {/* Success Celebration Modal */}
+        <OrderSuccessModal
+          visible={successModalVisible}
+          onClose={() => setSuccessModalVisible(false)}
+          result={orderResult}
+        />
+
+        {/* Recent Orders Modal with Edit & Re-send Action */}
+        <RecentOrdersModal
+          visible={recentModalVisible}
+          onClose={() => setRecentModalVisible(false)}
+          orders={recentOrders}
+          onSyncOffline={handleSyncOffline}
+          isSyncing={isSyncingOffline}
+          onEditOrder={handleEditOrder}
+        />
       </SafeAreaView>
     </View>
   );
@@ -468,6 +648,43 @@ const styles = StyleSheet.create({
       boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
       overflow: "hidden"
     } : {})
+  },
+  editingBanner: {
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#fde68a"
+  },
+  editingBannerLeft: {
+    flex: 1,
+    marginRight: 8
+  },
+  editingBannerTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#92400e"
+  },
+  editingBannerSub: {
+    fontSize: 11,
+    color: "#b45309",
+    marginTop: 1
+  },
+  cancelEditBtn: {
+    backgroundColor: "#fee2e2",
+    borderWidth: 1,
+    borderColor: "#fca5a5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  cancelEditBtnText: {
+    fontSize: 11,
+    color: "#b91c1c",
+    fontWeight: "700"
   },
   offlineBanner: {
     backgroundColor: "#fef3c7",
