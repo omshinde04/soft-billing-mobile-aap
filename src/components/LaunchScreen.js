@@ -35,7 +35,6 @@ export default function LaunchScreen({ onFinish, isLoading = false }) {
       })
     ]).start();
 
-    // Auto-proceed after 2 seconds if not manually controlled
     const timer = setTimeout(() => {
       if (onFinish) onFinish();
     }, 2200);
@@ -45,7 +44,6 @@ export default function LaunchScreen({ onFinish, isLoading = false }) {
 
   return (
     <View style={styles.container}>
-      {/* Decorative Natural Green Background Gradients / Circles */}
       <View style={styles.bgGlow} />
 
       <Animated.View
@@ -66,11 +64,6 @@ export default function LaunchScreen({ onFinish, isLoading = false }) {
           />
         </View>
 
-        {/* Brand Names */}
-        <View style={styles.badgeRow}>
-          <Text style={styles.badgeText}>🌱 GAAVCONNECT ECOSYSTEM</Text>
-        </View>
-
         <Text style={styles.brandTitle}>GaavBilling</Text>
         <Text style={styles.brandDevanagari}>गाव बिलिंग</Text>
 
@@ -78,7 +71,7 @@ export default function LaunchScreen({ onFinish, isLoading = false }) {
           सुलभ ग्रामीण व शहरी FMCG वितरण
         </Text>
         <Text style={styles.subTagline}>
-          Smart Field Order Booking & Real-Time Sync
+          Smart FMCG Distribution & Real-Time Sync
         </Text>
 
         {/* Feature Pills */}
@@ -103,7 +96,7 @@ export default function LaunchScreen({ onFinish, isLoading = false }) {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Tasteful, Discreet Attribution Footer */}
+      {/* Tasteful Attribution Footer */}
       <View style={styles.footerContainer}>
         <Text style={styles.districtText}>
           📍 Nashik District • Ghoti, Igatpuri, Nandgaon & Beyond
@@ -163,23 +156,8 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 65
   },
-  badgeRow: {
-    backgroundColor: COLORS.primaryWash,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 10
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: COLORS.primaryLight,
-    letterSpacing: 0.8
-  },
   brandTitle: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: "900",
     color: COLORS.primary,
     letterSpacing: -0.5,
@@ -190,7 +168,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: COLORS.accentGold,
     letterSpacing: 0.5,
-    marginBottom: 8
+    marginBottom: 10
   },
   tagline: {
     fontSize: 15,
@@ -203,7 +181,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 24,
     maxWidth: 280
   },
   featuresRow: {
@@ -213,8 +191,8 @@ const styles = StyleSheet.create({
   },
   featurePill: {
     backgroundColor: "#ffffff",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border

@@ -19,8 +19,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "expo export -p web",
-    "deploy": "expo export -p web && npx -y firebase-tools deploy --only hosting"
+    "build": "expo export -p web && node scripts/pwa-postbuild.js",
+    "deploy": "expo export -p web && npx -y firebase-tools deploy --only hosting",
+    "vercel-build": "npm run build"
   },
   "private": true
 }

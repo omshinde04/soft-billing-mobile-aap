@@ -7,7 +7,7 @@ import {
   Image,
   Platform
 } from "react-native";
-import { Menu, ChevronDown, Radio, RefreshCw } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { COLORS } from "../theme/colors";
 
 export default function Header({
@@ -17,14 +17,11 @@ export default function Header({
   onSelectBeat,
   isOfflineMode,
   onToggleOfflineMode,
-  offlineQueueCount = 0,
-  onOpenMenu,
-  onRefreshCatalog,
-  isRefreshing
+  offlineQueueCount = 0
 }) {
   return (
     <View style={styles.headerContainer}>
-      {/* Top Bar: Brand on Left, Network status & Hamburger on Right */}
+      {/* Top Bar: Brand on Left, Network status on Right */}
       <View style={styles.topRow}>
         {/* Brand Left */}
         <View style={styles.titleRow}>
@@ -36,57 +33,40 @@ export default function Header({
             />
           </View>
           <View>
-            <View style={styles.titleWithBadge}>
-              <Text style={styles.appTitle}>GaavBilling</Text>
-              <View style={styles.mobileBadge}>
-                <Text style={styles.mobileBadgeText}>FIELD APP</Text>
-              </View>
-            </View>
-            <Text style={styles.appSubtitle}>गाव बिलिंग • FMCG वितरण</Text>
+            <Text style={styles.appTitle}>GaavBilling</Text>
+            <Text style={styles.appSubtitle}>गाव बिलिंग</Text>
           </View>
         </View>
 
-        {/* Action Controls Right: Uncluttered & Spacious */}
-        <View style={styles.rightActions}>
-          {/* Online / Offline Status Pill */}
-          <TouchableOpacity
+        {/* Live Network Status Pill */}
+        <TouchableOpacity
+          style={[
+            styles.statusPill,
+            isOfflineMode ? styles.statusOffline : styles.statusOnline
+          ]}
+          onPress={onToggleOfflineMode}
+          activeOpacity={0.75}
+        >
+          <View
             style={[
-              styles.statusPill,
-              isOfflineMode ? styles.statusOffline : styles.statusOnline
+              styles.statusDot,
+              isOfflineMode ? styles.dotOffline : styles.dotOnline
             ]}
-            onPress={onToggleOfflineMode}
-            activeOpacity={0.75}
+          />
+          <Text
+            style={[
+              styles.statusText,
+              isOfflineMode ? styles.statusTextOffline : styles.statusTextOnline
+            ]}
           >
-            <View
-              style={[
-                styles.statusDot,
-                isOfflineMode ? styles.dotOffline : styles.dotOnline
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusText,
-                isOfflineMode ? styles.statusTextOffline : styles.statusTextOnline
-              ]}
-            >
-              {isOfflineMode ? "Offline" : "Online"}
-            </Text>
-            {offlineQueueCount > 0 && (
-              <View style={styles.queuePill}>
-                <Text style={styles.queuePillText}>{offlineQueueCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Clean Hamburger Menu Button */}
-          <TouchableOpacity
-            style={styles.hamburgerBtn}
-            onPress={onOpenMenu}
-            activeOpacity={0.75}
-          >
-            <Menu size={20} color="#ffffff" strokeWidth={2.4} />
-          </TouchableOpacity>
-        </View>
+            {isOfflineMode ? "Offline" : "Online"}
+          </Text>
+          {offlineQueueCount > 0 && (
+            <View style={styles.queuePill}>
+              <Text style={styles.queuePillText}>{offlineQueueCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Slim 1-Line Beat Selector Bar */}
@@ -155,50 +135,26 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 17
   },
-  titleWithBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6
-  },
   appTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "900",
     color: "#ffffff",
     letterSpacing: -0.3
   },
-  mobileBadge: {
-    backgroundColor: "rgba(216, 243, 220, 0.2)",
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "rgba(216, 243, 220, 0.4)"
-  },
-  mobileBadgeText: {
-    color: COLORS.primarySoft,
-    fontSize: 8,
-    fontWeight: "800",
-    letterSpacing: 0.5
-  },
   appSubtitle: {
-    fontSize: 10,
+    fontSize: 11,
     color: COLORS.accentGold,
     marginTop: 1,
     fontWeight: "700"
   },
-  rightActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8
-  },
   statusPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 16,
     borderWidth: 1,
-    gap: 5
+    gap: 6
   },
   statusOnline: {
     backgroundColor: "rgba(255, 255, 255, 0.12)",
@@ -231,7 +187,7 @@ const styles = StyleSheet.create({
   },
   queuePill: {
     backgroundColor: COLORS.accentAmber,
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 8,
     marginLeft: 2
@@ -241,23 +197,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "900"
   },
-  hamburgerBtn: {
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)"
-  },
   beatBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(11, 37, 24, 0.5)",
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
     marginTop: 8,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)"

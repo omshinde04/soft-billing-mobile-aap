@@ -16,7 +16,6 @@ import Header from "./src/components/Header";
 import LoginScreen from "./src/components/LoginScreen";
 import LaunchScreen from "./src/components/LaunchScreen";
 import BottomNavBar from "./src/components/BottomNavBar";
-import SideDrawer from "./src/components/SideDrawer";
 import RetailerSelector from "./src/components/RetailerSelector";
 import ProductCard from "./src/components/ProductCard";
 import StoresScreen from "./src/components/StoresScreen";
@@ -48,9 +47,6 @@ export default function App() {
 
   // Splash & Entry Screen State
   const [showSplash, setShowSplash] = useState(true);
-
-  // Side Drawer state
-  const [menuDrawerVisible, setMenuDrawerVisible] = useState(false);
 
   // Authentication & Session
   const [currentSalesman, setCurrentSalesman] = useState(null);
@@ -248,7 +244,7 @@ export default function App() {
     });
   };
 
-  // Real-time direct quantity update - never deletes item on 0 so typing and backspace is 100% stable
+  // Real-time direct quantity update
   const handleUpdateQty = (productId, qty, forceRemove = false) => {
     if (forceRemove) {
       setCartQuantities(prev => {
@@ -469,7 +465,7 @@ export default function App() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-        {/* Clean, Uncluttered Top Header with Hamburger and Live Status */}
+        {/* Clean, Decent Top Header without Crowded Icons or Hamburger */}
         <Header
           currentSalesman={currentSalesman}
           beats={beats}
@@ -478,9 +474,6 @@ export default function App() {
           isOfflineMode={isOfflineMode}
           onToggleOfflineMode={handleToggleOfflineMode}
           offlineQueueCount={offlineQueueCount}
-          onOpenMenu={() => setMenuDrawerVisible(true)}
-          onRefreshCatalog={loadCatalogData}
-          isRefreshing={isRefreshing}
         />
 
         {/* Editing Order Notice Banner */}
@@ -681,26 +674,6 @@ export default function App() {
           onTabChange={setActiveTab}
           cartCount={totalCartCount}
           pendingSyncCount={offlineQueueCount}
-        />
-
-        {/* Slide-out Hamburger Menu Drawer */}
-        <SideDrawer
-          visible={menuDrawerVisible}
-          onClose={() => setMenuDrawerVisible(false)}
-          salesman={currentSalesman}
-          beats={beats}
-          currentBeat={currentBeat}
-          onSelectBeat={handleSelectBeat}
-          isOfflineMode={isOfflineMode}
-          onToggleOfflineMode={handleToggleOfflineMode}
-          offlineQueueCount={offlineQueueCount}
-          onSyncOffline={handleSyncOffline}
-          isSyncing={isSyncingOffline}
-          onLogout={handleLogout}
-          onNavigateTab={(tab) => {
-            setMenuDrawerVisible(false);
-            setActiveTab(tab);
-          }}
         />
 
         {/* Review & Submit Cart Modal */}
