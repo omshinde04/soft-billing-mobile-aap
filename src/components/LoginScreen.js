@@ -5,24 +5,26 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ActivityIndicator,
+  Image
 } from "react-native";
-import { authenticateSalesman } from "../services/catalogService.js";
+import { authenticateSalesman } from "../services/catalogService";
+import { COLORS } from "../theme/colors";
 
-export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
+export default function LoginScreen({ salesmen = [], onLoginSuccess }) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const handleLogin = async (idToUse, passToUse) => {
-    const id = idToUse !== undefined ? idToUse : identifier;
-    const pass = passToUse !== undefined ? passToUse : password;
+  const handleLogin = async (overrideId, overridePass) => {
+    const id = overrideId !== undefined ? overrideId : identifier;
+    const pass = overridePass !== undefined ? overridePass : password;
 
-    if (!String(id).trim() || !String(pass).trim()) {
+    if (!id || !pass) {
       setErrorMessage("Please enter both Salesman ID/Phone and PIN.");
       return;
     }
@@ -55,25 +57,30 @@ export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Brand Card */}
+        {/* Brand Header */}
         <View style={styles.brandHeader}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoIcon}>⚡</Text>
+          <View style={styles.logoFrame}>
+            <Image
+              source={require("../../assets/gaavbilling-logo.jpg")}
+              style={styles.logoImage}
+              resizeMode="cover"
+            />
           </View>
-          <Text style={styles.brandTitle}>Billing-Soft</Text>
-          <View style={styles.badgePill}>
-            <Text style={styles.badgePillText}>FIELD ORDER BOOKING</Text>
+          <View style={styles.ecosystemPill}>
+            <Text style={styles.ecosystemPillText}>🌱 GAAVCONNECT ECOSYSTEM</Text>
           </View>
+          <Text style={styles.brandTitle}>GaavBilling</Text>
+          <Text style={styles.brandDevanagari}>गाव बिलिंग</Text>
           <Text style={styles.brandSubtitle}>
-            Distributor Field Sales & Market Beat Management
+            सुलभ ग्रामीण व शहरी FMCG वितरण • Nashik & Beyond
           </Text>
         </View>
 
         {/* Login Box */}
         <View style={styles.loginCard}>
-          <Text style={styles.cardHeaderTitle}>Salesman Login</Text>
+          <Text style={styles.cardHeaderTitle}>विक्रेता लॉगिन • Salesman Login</Text>
           <Text style={styles.cardHeaderSub}>
-            Enter your login credentials assigned by Admin Desktop
+            Enter credentials assigned by Desktop Billing Admin
           </Text>
 
           {errorMessage ? (
@@ -83,7 +90,7 @@ export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
           ) : null}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>SALESMAN ID OR PHONE</Text>
+            <Text style={styles.inputLabel}>SALESMAN ID OR PHONE NUMBER</Text>
             <TextInput
               style={styles.textInput}
               placeholder="e.g. rahul or 9822012345"
@@ -96,7 +103,7 @@ export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>PASSWORD / PIN</Text>
+            <Text style={styles.inputLabel}>SECRET PIN / PASSWORD</Text>
             <TextInput
               style={styles.textInput}
               placeholder="e.g. 123"
@@ -116,14 +123,14 @@ export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
             {isLoading ? (
               <ActivityIndicator color="#ffffff" size="small" />
             ) : (
-              <Text style={styles.loginButtonText}>LOGIN TO MARKET BEAT ⚡</Text>
+              <Text style={styles.loginButtonText}>LOGIN TO MARKET BEAT ➔</Text>
             )}
           </TouchableOpacity>
 
-          {/* Quick Demo Logins */}
+          {/* Quick Demo Logins for Fast Field Testing */}
           {salesmen.length > 0 && (
             <View style={styles.demoSection}>
-              <Text style={styles.demoSectionTitle}>1-TAP DEMO LOGINS (CREATED BY ADMIN):</Text>
+              <Text style={styles.demoSectionTitle}>1-TAP DEMO ACCOUNTS (CREATED BY ADMIN):</Text>
               <View style={styles.demoPillsRow}>
                 {salesmen.map((s) => (
                   <TouchableOpacity
@@ -132,8 +139,13 @@ export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
                     onPress={() => handleQuickDemoSelect(s)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.demoPillName}>👤 {s.name}</Text>
-                    <Text style={styles.demoPillSub}>PIN: {s.password} • {s.assigned_beat}</Text>
+                    <View style={styles.demoPillTop}>
+                      <Text style={styles.demoPillName}>👤 {s.name}</Text>
+                      <View style={styles.beatTag}>
+                        <Text style={styles.beatTagText}>📍 {s.assigned_beat}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.demoPillSub}>ID: {s.login_id} • PIN: {s.password}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -142,9 +154,16 @@ export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
 
           <View style={styles.footerNote}>
             <Text style={styles.footerNoteText}>
-              🔒 Offline Ready: Works even in market basements with zero mobile network.
+              🔒 100% Offline Ready: Orders save automatically even in basement market alleys with zero mobile network.
             </Text>
           </View>
+        </View>
+
+        {/* Small, Tasteful Attribution Footer */}
+        <View style={styles.attributionRow}>
+          <Text style={styles.attributionText}>
+            Developed by <Text style={styles.authorBold}>Om Vilas Shinde</Text>
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -154,85 +173,98 @@ export default function LoginScreen({ onLoginSuccess, salesmen = [] }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f172a"
+    backgroundColor: COLORS.background
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 20
+    padding: 20,
+    paddingTop: 36,
+    paddingBottom: 24
   },
   brandHeader: {
     alignItems: "center",
-    marginBottom: 24
+    marginBottom: 20
   },
-  logoBadge: {
-    backgroundColor: "#f59e0b",
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
+  logoFrame: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#ffffff",
+    padding: 4,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: COLORS.primaryLight,
     marginBottom: 10,
-    shadowColor: "#f59e0b",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6
+    overflow: "hidden"
   },
-  logoIcon: {
-    fontSize: 28,
-    fontWeight: "bold"
+  logoImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 40
   },
-  brandTitle: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: "#ffffff",
-    letterSpacing: -0.5,
-    marginBottom: 6
-  },
-  badgePill: {
-    backgroundColor: "rgba(59, 130, 246, 0.2)",
+  ecosystemPill: {
+    backgroundColor: COLORS.primaryWash,
     paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 20,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.4)",
-    marginBottom: 8
+    borderColor: COLORS.border,
+    marginBottom: 6
   },
-  badgePillText: {
-    color: "#60a5fa",
-    fontSize: 10,
+  ecosystemPillText: {
+    color: COLORS.primaryLight,
+    fontSize: 9,
     fontWeight: "800",
     letterSpacing: 0.5
   },
+  brandTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: COLORS.primary,
+    letterSpacing: -0.5,
+    marginBottom: 1
+  },
+  brandDevanagari: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.accentGold,
+    marginBottom: 4
+  },
   brandSubtitle: {
     fontSize: 12,
-    color: "#94a3b8",
+    color: COLORS.textMuted,
     textAlign: "center"
   },
   loginCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
   cardHeaderTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
-    color: "#0f172a",
+    color: COLORS.primary,
     marginBottom: 2
   },
   cardHeaderSub: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 16
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginBottom: 14
   },
   errorBox: {
-    backgroundColor: "#fef2f2",
+    backgroundColor: COLORS.dangerBg,
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
@@ -241,7 +273,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 12,
-    color: "#dc2626",
+    color: COLORS.danger,
     fontWeight: "600"
   },
   inputGroup: {
@@ -250,27 +282,27 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#475569",
+    color: COLORS.textMuted,
     letterSpacing: 0.5,
     marginBottom: 6
   },
   textInput: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: COLORS.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    color: "#0f172a"
+    color: COLORS.textDark
   },
   loginButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: COLORS.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 6,
-    shadowColor: "#2563eb",
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -281,20 +313,20 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
+    fontSize: 13,
+    fontWeight: "800",
     letterSpacing: 0.5
   },
   demoSection: {
-    marginTop: 18,
-    paddingTop: 16,
+    marginTop: 16,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9"
+    borderTopColor: COLORS.borderLight
   },
   demoSectionTitle: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#64748b",
+    color: COLORS.primaryLight,
     letterSpacing: 0.5,
     marginBottom: 8
   },
@@ -302,31 +334,63 @@ const styles = StyleSheet.create({
     gap: 8
   },
   demoPill: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: COLORS.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8
   },
+  demoPillTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 2
+  },
   demoPillName: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 2
+    color: COLORS.textDark
+  },
+  beatTag: {
+    backgroundColor: COLORS.primaryWash,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4
+  },
+  beatTagText: {
+    fontSize: 10,
+    color: COLORS.primaryLight,
+    fontWeight: "600"
   },
   demoPillSub: {
     fontSize: 10,
-    color: "#2563eb",
-    fontWeight: "600"
+    color: COLORS.textMuted
   },
   footerNote: {
-    marginTop: 16,
-    alignItems: "center"
+    marginTop: 14,
+    backgroundColor: COLORS.primaryWash,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
   footerNoteText: {
     fontSize: 10,
-    color: "#94a3b8",
+    color: COLORS.primaryLight,
+    lineHeight: 14,
     textAlign: "center"
+  },
+  attributionRow: {
+    alignItems: "center",
+    marginTop: 18
+  },
+  attributionText: {
+    fontSize: 10,
+    color: COLORS.textLight
+  },
+  authorBold: {
+    fontWeight: "700",
+    color: COLORS.primaryLight
   }
 });

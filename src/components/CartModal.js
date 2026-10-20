@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TextInput,
   ActivityIndicator
 } from "react-native";
+import { COLORS } from "../theme/colors";
 
 export default function CartModal({
   visible,
@@ -19,22 +20,91 @@ export default function CartModal({
   beat,
   totals,
   onUpdateQty,
+  onRemoveItem,
   onSubmitOrder,
   isSubmitting,
   editingOrder = null
 }) {
   const [notes, setNotes] = useState("");
+  // Local string state per product ID so typing and backspacing to "" NEVER causes row to disappear
+  const [qtyInputs, setQtyInputs] = useState({});
+
+  useEffect(() => {
+    if (visible) {
+      const initial = {};
+      cartItems.forEach(it => {
+        initial[it.id] = String(it.quantity || 0);
+      });
+      setQtyInputs(initial);
+
+      if (editingOrder && editingOrder.notes) {
+        // Strip automated bracket tags for clean user notes editing
+        const cleanNote = editingOrder.notes
+          .replace(/\[(?:Revised Order|REPLACED BY|SUPERSEDED BY)[^\]]*\]/gi, "")
+          .trim();
+        setNotes(cleanNote);
+      } else {
+        setNotes("");
+      }
+    }
+  }, [visible, editingOrder]);
+
+  const handleQtyChange = (itemId, text) => {
+    const clean = text.replace(/[^0-9]/g, "");
+    setQtyInputs(prev => ({
+      ...prev,
+      [itemId]: clean
+    }));
+
+    const numVal = clean === "" ? 0 : parseInt(clean, 10);
+    if (onUpdateQty) {
+      onUpdateQty(itemId, isNaN(numVal) ? 0 : numVal);
+    }
+  };
+
+  const handleStep = (itemId, delta) => {
+    const currentStr = qtyInputs[itemId];
+    const current = currentStr !== undefined ? parseInt(currentStr, 10) : 0;
+    const nextVal = Math.max(0, (isNaN(current) ? 0 : current) + delta);
+    setQtyInputs(prev => ({
+      ...prev,
+      [itemId]: String(nextVal)
+    }));
+    if (onUpdateQty) {
+      onUpdateQty(itemId, nextVal);
+    }
+  };
+
+  const handleRemove = (itemId) => {
+    setQtyInputs(prev => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    if (onRemoveItem) {
+      onRemoveItem(itemId);
+    } else if (onUpdateQty) {
+      onUpdateQty(itemId, 0, true);
+    }
+  };
 
   const handleSend = () => {
     if (!retailer) {
       alert("Please select a retailer store before submitting the order.");
       return;
     }
-    const validItems = cartItems.filter(i => Number(i.quantity || 0) > 0);
+    // Filter items that have quantity > 0
+    const validItems = cartItems.filter(i => {
+      const raw = qtyInputs[i.id];
+      const q = raw !== undefined && raw !== "" ? parseInt(raw, 10) : Number(i.quantity);
+      return !isNaN(q) && q > 0;
+    });
+
     if (!validItems || validItems.length === 0) {
-      alert("Your order is empty. Please set quantity for at least one product.");
+      alert("Your order has no items with quantity greater than 0. Please enter quantities before submitting.");
       return;
     }
+
     onSubmitOrder({ notes });
   };
 
@@ -79,7 +149,11 @@ export default function CartModal({
             </View>
           )}
 
-          <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Retailer Card */}
             <View style={styles.retailerCard}>
               <View style={styles.retailerTop}>
@@ -101,9 +175,14 @@ export default function CartModal({
               </View>
 
               {cartItems.map((item, index) => {
+                const rawInput = qtyInputs[item.id];
+                const displayValue = rawInput !== undefined ? rawInput : String(item.quantity || "");
+                const numericQty = rawInput !== undefined && rawInput !== ""
+                  ? (parseInt(rawInput, 10) || 0)
+                  : (Number(item.quantity) || 0);
+
                 const rate = Number(item.selling_rate || item.rate || 0);
-                const qty = Number(item.quantity || 0);
-                const lineTaxable = rate * qty;
+                const lineTaxable = rate * numericQty;
                 const lineTotal = lineTaxable * (1 + Number(item.tax_rate || 0) / 100);
 
                 return (
@@ -118,11 +197,12 @@ export default function CartModal({
                     </View>
 
                     <View style={styles.itemRight}>
-                      {/* Stepper with controlled direct typing */}
+                      {/* Stepper with controlled direct typing - Row NEVER vanishes on backspace! */}
                       <View style={styles.stepperMini}>
                         <TouchableOpacity
                           style={styles.miniBtn}
-                          onPress={() => onUpdateQty(item.id, Math.max(0, qty - 1))}
+                          onPress={() => handleStep(item.id, -1)}
+                          activeOpacity={0.7}
                         >
                           <Text style={styles.miniBtnText}>−</Text>
                         </TouchableOpacity>
@@ -131,18 +211,16 @@ export default function CartModal({
                           style={styles.miniQtyInput}
                           keyboardType="numeric"
                           selectTextOnFocus
-                          value={String(qty || "")}
+                          value={displayValue}
                           placeholder="0"
-                          onChangeText={(text) => {
-                            const clean = text.replace(/[^0-9]/g, "");
-                            const val = clean === "" ? 0 : parseInt(clean, 10);
-                            onUpdateQty(item.id, isNaN(val) ? 0 : val);
-                          }}
+                          placeholderTextColor="#879B8F"
+                          onChangeText={(text) => handleQtyChange(item.id, text)}
                         />
 
                         <TouchableOpacity
                           style={[styles.miniBtn, styles.miniAddBtn]}
-                          onPress={() => onUpdateQty(item.id, qty + 1)}
+                          onPress={() => handleStep(item.id, 1)}
+                          activeOpacity={0.7}
                         >
                           <Text style={styles.miniAddBtnText}>+</Text>
                         </TouchableOpacity>
@@ -152,7 +230,8 @@ export default function CartModal({
                         <Text style={styles.lineTotal}>₹{lineTotal.toFixed(2)}</Text>
                         <TouchableOpacity
                           style={styles.trashBtn}
-                          onPress={() => onUpdateQty(item.id, 0)}
+                          onPress={() => handleRemove(item.id)}
+                          activeOpacity={0.7}
                           title="Remove Item"
                         >
                           <Text style={styles.trashText}>✕</Text>
@@ -170,7 +249,7 @@ export default function CartModal({
               <TextInput
                 style={styles.notesInput}
                 placeholder="e.g. Deliver before 2 PM, Cash on Delivery, etc."
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor="#879B8F"
                 value={notes}
                 onChangeText={setNotes}
                 multiline
@@ -211,7 +290,7 @@ export default function CartModal({
               style={[styles.sendBtn, isSubmitting && styles.sendBtnDisabled]}
               onPress={handleSend}
               disabled={isSubmitting}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
               {isSubmitting ? (
                 <ActivityIndicator color="#ffffff" size="small" />
@@ -236,11 +315,11 @@ export default function CartModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(11, 37, 24, 0.65)",
     justifyContent: "flex-end"
   },
   sheetContainer: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     height: "90%",
@@ -254,20 +333,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9"
+    borderBottomColor: COLORS.borderLight
   },
   sheetTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#0f172a"
+    color: COLORS.primary
   },
   sheetSubtitle: {
     fontSize: 12,
-    color: "#64748b",
+    color: COLORS.textMuted,
     marginTop: 2
   },
   closeBtn: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: COLORS.surfaceAlt,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -277,10 +356,10 @@ const styles = StyleSheet.create({
   closeBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   revisingBanner: {
-    backgroundColor: "#fef3c7",
+    backgroundColor: COLORS.accentLight,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
@@ -315,11 +394,11 @@ const styles = StyleSheet.create({
     paddingBottom: 24
   },
   retailerCard: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: COLORS.border,
     marginBottom: 16
   },
   retailerTop: {
@@ -331,28 +410,28 @@ const styles = StyleSheet.create({
   retailerLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#64748b",
+    color: COLORS.primaryLight,
     letterSpacing: 0.5
   },
   salesmanTag: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#2563eb"
+    color: COLORS.primary
   },
   shopName: {
     fontSize: 15,
-    fontWeight: "700",
-    color: "#0f172a",
+    fontWeight: "800",
+    color: COLORS.primary,
     marginBottom: 2
   },
   shopSub: {
     fontSize: 11,
-    color: "#64748b",
+    color: COLORS.textMuted,
     marginBottom: 2
   },
   shopPhone: {
     fontSize: 11,
-    color: "#0284c7"
+    color: COLORS.primaryLight
   },
   itemsSection: {
     marginBottom: 16
@@ -366,12 +445,12 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#64748b",
+    color: COLORS.primary,
     letterSpacing: 0.5
   },
   itemsHeaderHint: {
     fontSize: 10,
-    color: "#3b82f6",
+    color: COLORS.primaryLight,
     fontWeight: "600"
   },
   itemRow: {
@@ -380,7 +459,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9"
+    borderBottomColor: COLORS.borderLight
   },
   itemLeft: {
     flex: 1,
@@ -389,12 +468,12 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#0f172a",
+    color: COLORS.textDark,
     marginBottom: 2
   },
   itemMeta: {
     fontSize: 11,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   itemRight: {
     alignItems: "flex-end"
@@ -403,14 +482,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#ffffff",
-    borderRadius: 6,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: COLORS.border,
     marginBottom: 4,
     overflow: "hidden"
   },
   miniBtn: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: COLORS.surfaceAlt,
     width: 28,
     height: 28,
     alignItems: "center",
@@ -419,10 +498,10 @@ const styles = StyleSheet.create({
   miniBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#475569"
+    color: COLORS.textDark
   },
   miniAddBtn: {
-    backgroundColor: "#2563eb"
+    backgroundColor: COLORS.primary
   },
   miniAddBtnText: {
     fontSize: 14,
@@ -430,13 +509,13 @@ const styles = StyleSheet.create({
     color: "#ffffff"
   },
   miniQtyInput: {
-    minWidth: 40,
+    minWidth: 44,
     height: 28,
     textAlign: "center",
     fontSize: 13,
     fontWeight: "800",
-    color: "#0f172a",
-    backgroundColor: "#eff6ff",
+    color: COLORS.primaryDark,
+    backgroundColor: "#ffffff",
     paddingHorizontal: 2
   },
   totalAndTrash: {
@@ -446,21 +525,21 @@ const styles = StyleSheet.create({
   },
   lineTotal: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#0f172a"
+    fontWeight: "800",
+    color: COLORS.primary
   },
   trashBtn: {
-    backgroundColor: "#fee2e2",
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    backgroundColor: COLORS.dangerBg,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center"
   },
   trashText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "bold",
-    color: "#b91c1c"
+    color: COLORS.danger
   },
   notesSection: {
     marginBottom: 16
@@ -468,27 +547,27 @@ const styles = StyleSheet.create({
   notesLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#64748b",
+    color: COLORS.textMuted,
     letterSpacing: 0.5,
     marginBottom: 6
   },
   notesInput: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: COLORS.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
-    color: "#0f172a",
+    color: COLORS.textDark,
     minHeight: 46
   },
   totalsCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: COLORS.border,
     marginBottom: 14
   },
   totalRow: {
@@ -499,16 +578,16 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 12,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   totalValue: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#0f172a"
+    color: COLORS.textDark
   },
   grandTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
+    borderTopColor: COLORS.borderLight,
     paddingTop: 8,
     marginTop: 4,
     marginBottom: 0
@@ -516,41 +595,42 @@ const styles = StyleSheet.create({
   grandTotalLabel: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0f172a"
+    color: COLORS.primary
   },
   grandTotalValue: {
     fontSize: 18,
     fontWeight: "900",
-    color: "#16a34a"
+    color: COLORS.primary
   },
   cloudNotice: {
-    backgroundColor: "#f0fdf4",
+    backgroundColor: COLORS.primaryWash,
     padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#bbf7d0",
+    borderColor: COLORS.border,
     marginBottom: 16
   },
   cloudNoticeText: {
     fontSize: 11,
-    color: "#166534",
+    color: COLORS.primaryLight,
     lineHeight: 16,
-    textAlign: "center"
+    textAlign: "center",
+    fontWeight: "600"
   },
   footerContainer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
-    backgroundColor: "#ffffff"
+    borderTopColor: COLORS.borderLight,
+    backgroundColor: COLORS.surface
   },
   sendBtn: {
-    backgroundColor: "#16a34a",
+    backgroundColor: COLORS.primary,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 14,
-    borderRadius: 12,
-    shadowColor: "#16a34a",
+    borderRadius: 14,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 6,

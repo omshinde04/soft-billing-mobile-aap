@@ -15,11 +15,13 @@ import {
 } from "react-native";
 import Header from "./src/components/Header";
 import LoginScreen from "./src/components/LoginScreen";
+import LaunchScreen from "./src/components/LaunchScreen";
 import RetailerSelector from "./src/components/RetailerSelector";
 import ProductCard from "./src/components/ProductCard";
 import CartModal from "./src/components/CartModal";
 import OrderSuccessModal from "./src/components/OrderSuccessModal";
 import RecentOrdersModal from "./src/components/RecentOrdersModal";
+import { COLORS } from "./src/theme/colors";
 import {
   fetchCatalogFromCloud,
   getActiveSession,
@@ -36,6 +38,9 @@ import {
 } from "./src/services/orderService";
 
 export default function App() {
+  // Splash & Entry Screen State
+  const [showSplash, setShowSplash] = useState(true);
+
   // Authentication & Session
   const [currentSalesman, setCurrentSalesman] = useState(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -231,21 +236,41 @@ export default function App() {
     });
   };
 
-  // Real-time direct quantity update
-  const handleUpdateQty = (productId, qty) => {
-    const num = Number(qty);
-    if (isNaN(num) || num <= 0) {
+  // Real-time direct quantity update - never deletes item on 0 so typing and backspace is 100% stable
+  const handleUpdateQty = (productId, qty, forceRemove = false) => {
+    if (forceRemove) {
       setCartQuantities(prev => {
         const next = { ...prev };
         delete next[productId];
         return next;
       });
-    } else {
-      setCartQuantities(prev => ({
-        ...prev,
-        [productId]: num
-      }));
+      return;
     }
+    const num = Number(qty);
+    setCartQuantities(prev => ({
+      ...prev,
+      [productId]: isNaN(num) || num < 0 ? 0 : num
+    }));
+  };
+
+  const handleRemoveFromCart = (productId) => {
+    setCartQuantities(prev => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+  };
+
+  const handleCloseCart = () => {
+    // Sweep away any zero-quantity items when modal closes
+    setCartQuantities(prev => {
+      const next = {};
+      Object.keys(prev).forEach(k => {
+        if (Number(prev[k]) > 0) next[k] = prev[k];
+      });
+      return next;
+    });
+    setCartModalVisible(false);
   };
 
   // Edit Order Handler
@@ -308,19 +333,33 @@ export default function App() {
     });
   }, [products, selectedCategory, searchQuery]);
 
-  // Cart items & totals calculation
+  // Cart items & totals calculation - preserves rows in cart during modal editing
   const cartItems = useMemo(() => {
     return Object.keys(cartQuantities)
       .map(id => {
-        const prod = products.find(p => String(p.id) === String(id));
+        let prod = products.find(p => String(p.id) === String(id));
+        if (!prod && editingOrder && Array.isArray(editingOrder.items)) {
+          const foundInOrder = editingOrder.items.find(it => String(it.product_id || it.id) === String(id));
+          if (foundInOrder) {
+            prod = {
+              id: foundInOrder.product_id || foundInOrder.id,
+              name: foundInOrder.item_name || foundInOrder.name,
+              selling_rate: foundInOrder.rate || foundInOrder.selling_rate,
+              rate: foundInOrder.rate || foundInOrder.selling_rate,
+              mrp: foundInOrder.mrp,
+              tax_rate: foundInOrder.tax_rate,
+              unit: foundInOrder.unit || "PCS"
+            };
+          }
+        }
         if (!prod) return null;
         return {
           ...prod,
           quantity: cartQuantities[id]
         };
       })
-      .filter(item => item && item.quantity > 0);
-  }, [cartQuantities, products]);
+      .filter(Boolean);
+  }, [cartQuantities, products, editingOrder]);
 
   const orderTotals = useMemo(() => {
     return calculateOrderTotals(cartItems);
@@ -394,14 +433,17 @@ export default function App() {
     }
   };
 
-  // If checking authentication session on launch
-  if (isCheckingAuth) {
+  // Launch / Welcome Screen on App Startup
+  if (showSplash) {
     return (
-      <View style={[styles.outerContainer, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color="#f59e0b" />
-        <Text style={{ color: "#ffffff", marginTop: 12, fontWeight: "700" }}>
-          Loading Billing-Soft...
-        </Text>
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+          <LaunchScreen
+            isLoading={isCheckingAuth}
+            onFinish={() => setShowSplash(false)}
+          />
+        </SafeAreaView>
       </View>
     );
   }
@@ -411,7 +453,7 @@ export default function App() {
     return (
       <View style={styles.outerContainer}>
         <SafeAreaView style={styles.safeArea}>
-          <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+          <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
           <LoginScreen
             salesmen={salesmen}
             onLoginSuccess={handleLoginSuccess}
@@ -424,7 +466,7 @@ export default function App() {
   return (
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
         {/* Header with Salesman Profile, Beat Selector & Logout */}
         <Header
@@ -501,8 +543,8 @@ export default function App() {
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search biscuits, chocolates, soaps, SKU..."
-              placeholderTextColor="#94a3b8"
+              placeholder="Search biscuits, soaps, spices, SKU..."
+              placeholderTextColor={COLORS.textLight}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -540,7 +582,7 @@ export default function App() {
           keyExtractor={item => String(item.id)}
           contentContainerStyle={[
             styles.listContainer,
-            cartItems.length > 0 && { paddingBottom: 100 }
+            cartItems.length > 0 && { paddingBottom: 110 }
           ]}
           renderItem={({ item }) => (
             <ProductCard
@@ -553,9 +595,25 @@ export default function App() {
           )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>🔍</Text>
-              <Text style={styles.emptyTitle}>No matching products</Text>
-              <Text style={styles.emptySubtitle}>Try searching for another FMCG brand or category.</Text>
+              <Text style={styles.emptyIcon}>🌾</Text>
+              <Text style={styles.emptyTitle}>कोणतेही उत्पादन सापडले नाही</Text>
+              <Text style={styles.emptySubtitle}>No matching products. Try another search or category.</Text>
+            </View>
+          }
+          ListFooterComponent={
+            <View style={styles.catalogFooter}>
+              <View style={styles.footerBrandRow}>
+                <Text style={styles.footerBrandName}>GaavBilling</Text>
+                <Text style={styles.footerBrandDot}>•</Text>
+                <Text style={styles.footerBrandMarathi}>गाव बिलिंग</Text>
+              </View>
+              <Text style={styles.footerDistrict}>
+                सुलभ FMCG वितरण • Nashik District & Rural Network
+              </Text>
+              <View style={styles.footerDivider} />
+              <Text style={styles.footerCredit}>
+                Developed with pride by <Text style={styles.footerAuthor}>Om Vilas Shinde</Text>
+              </Text>
             </View>
           }
         />
@@ -569,7 +627,7 @@ export default function App() {
               </View>
               <View>
                 <Text style={styles.cartBarLabel}>
-                  {cartItems.length} {cartItems.length === 1 ? "Product" : "Products"} Added
+                  {cartItems.length} {cartItems.length === 1 ? "Item" : "Items"} • Total
                 </Text>
                 <Text style={styles.cartBarTotal}>₹{orderTotals.grand_total.toFixed(2)}</Text>
               </View>
@@ -581,7 +639,7 @@ export default function App() {
               activeOpacity={0.85}
             >
               <Text style={styles.viewCartText}>
-                {editingOrder ? "REVIEW REVISION ⚡" : "VIEW ORDER ⚡"}
+                {editingOrder ? "REVISION CHECKOUT ➔" : "ORDER SUMMARY ➔"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -590,13 +648,14 @@ export default function App() {
         {/* Review & Submit Cart Modal */}
         <CartModal
           visible={cartModalVisible}
-          onClose={() => setCartModalVisible(false)}
+          onClose={handleCloseCart}
           cartItems={cartItems}
           retailer={selectedRetailer}
           salesman={currentSalesman}
           beat={currentBeat}
           totals={orderTotals}
           onUpdateQty={handleUpdateQty}
+          onRemoveItem={handleRemoveFromCart}
           onSubmitOrder={handleSubmitOrder}
           isSubmitting={isSubmitting}
           editingOrder={editingOrder}
@@ -626,7 +685,7 @@ export default function App() {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: Platform.OS === "web" ? "#0f172a" : "#f8fafc",
+    backgroundColor: Platform.OS === "web" ? "#0D2018" : COLORS.background,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -634,22 +693,22 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     maxWidth: 480,
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.background,
     position: "relative",
     ...(Platform.OS === "web" ? {
-      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
+      boxShadow: "0 20px 35px -5px rgba(0, 20, 10, 0.45), 0 8px 16px -6px rgba(0, 0, 0, 0.3)",
       overflow: "hidden"
     } : {})
   },
   editingBanner: {
-    backgroundColor: "#fef3c7",
+    backgroundColor: COLORS.accentLight,
     paddingHorizontal: 16,
     paddingVertical: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#fde68a"
+    borderBottomColor: "#FDE68A"
   },
   editingBannerLeft: {
     flex: 1,
@@ -658,45 +717,45 @@ const styles = StyleSheet.create({
   editingBannerTitle: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#92400e"
+    color: "#92400E"
   },
   editingBannerSub: {
     fontSize: 11,
-    color: "#b45309",
+    color: "#B45309",
     marginTop: 1
   },
   cancelEditBtn: {
-    backgroundColor: "#fee2e2",
+    backgroundColor: "#FEE2E2",
     borderWidth: 1,
-    borderColor: "#fca5a5",
+    borderColor: "#FCA5A5",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6
   },
   cancelEditBtnText: {
     fontSize: 11,
-    color: "#b91c1c",
+    color: "#B91C1C",
     fontWeight: "700"
   },
   offlineBanner: {
-    backgroundColor: "#fef3c7",
+    backgroundColor: COLORS.warningBg,
     paddingHorizontal: 16,
     paddingVertical: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#fde68a"
+    borderBottomColor: "#FDE68A"
   },
   offlineBannerText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#92400e",
+    color: "#92400E",
     flex: 1,
     marginRight: 8
   },
   syncNowBtn: {
-    backgroundColor: "#d97706",
+    backgroundColor: COLORS.accentAmber,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6
@@ -716,28 +775,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 40
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1
   },
   searchIcon: {
     fontSize: 14,
-    marginRight: 8
+    marginRight: 8,
+    opacity: 0.7
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: "#0f172a"
+    color: COLORS.textDark,
+    fontWeight: "500"
   },
   clearSearchText: {
     fontSize: 14,
-    color: "#94a3b8",
+    color: COLORS.textLight,
     paddingHorizontal: 6
   },
   categoryBar: {
     paddingVertical: 6,
-    backgroundColor: "#f8fafc"
+    backgroundColor: COLORS.background
   },
   categoryScroll: {
     paddingHorizontal: 16,
@@ -745,20 +811,20 @@ const styles = StyleSheet.create({
   },
   categoryPill: {
     backgroundColor: "#ffffff",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#e2e8f0"
+    borderColor: COLORS.border
   },
   activeCategoryPill: {
-    backgroundColor: "#0f172a",
-    borderColor: "#0f172a"
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary
   },
   categoryText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   activeCategoryText: {
     color: "#ffffff",
@@ -767,81 +833,133 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingHorizontal: 16,
     paddingTop: 4,
-    paddingBottom: 24
+    paddingBottom: 32
   },
   emptyContainer: {
     paddingVertical: 48,
     alignItems: "center"
   },
   emptyIcon: {
-    fontSize: 36,
+    fontSize: 40,
     marginBottom: 8
   },
   emptyTitle: {
     fontSize: 15,
-    fontWeight: "700",
-    color: "#0f172a",
+    fontWeight: "800",
+    color: COLORS.textDark,
     marginBottom: 4
   },
   emptySubtitle: {
     fontSize: 12,
-    color: "#64748b"
+    color: COLORS.textMuted
+  },
+  catalogFooter: {
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    marginTop: 8
+  },
+  footerBrandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4
+  },
+  footerBrandName: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.primary
+  },
+  footerBrandDot: {
+    color: COLORS.accentGold,
+    fontWeight: "900"
+  },
+  footerBrandMarathi: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.accentGold
+  },
+  footerDistrict: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: "center",
+    marginBottom: 10
+  },
+  footerDivider: {
+    width: 60,
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginBottom: 10
+  },
+  footerCredit: {
+    fontSize: 11,
+    color: COLORS.textLight
+  },
+  footerAuthor: {
+    fontWeight: "700",
+    color: COLORS.primaryLight
   },
   floatingCartBar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#0f172a",
+    backgroundColor: COLORS.primary,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 10
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 12
   },
   cartBarInfo: {
     flexDirection: "row",
     alignItems: "center"
   },
   cartCountBadge: {
-    backgroundColor: "#f59e0b",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    backgroundColor: COLORS.accentGold,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10
   },
   cartCountText: {
-    color: "#0f172a",
+    color: COLORS.primaryDark,
     fontSize: 14,
     fontWeight: "900"
   },
   cartBarLabel: {
     fontSize: 11,
-    color: "#94a3b8"
+    color: COLORS.primarySoft,
+    fontWeight: "600"
   },
   cartBarTotal: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "900",
     color: "#ffffff"
   },
   viewCartButton: {
-    backgroundColor: "#16a34a",
+    backgroundColor: COLORS.accentGold,
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 10
+    borderRadius: 12,
+    shadowColor: COLORS.accentGold,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3
   },
   viewCartText: {
-    color: "#ffffff",
-    fontSize: 13,
+    color: COLORS.primaryDark,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 0.5
   }

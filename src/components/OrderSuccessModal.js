@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from "react-native";
+import { COLORS } from "../theme/colors";
 
 export default function OrderSuccessModal({
   visible,
@@ -53,7 +54,7 @@ export default function OrderSuccessModal({
           </View>
 
           {/* Action button */}
-          <TouchableOpacity style={styles.actionBtn} onPress={onClose} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.actionBtn} onPress={onClose} activeOpacity={0.85}>
             <Text style={styles.actionBtnText}>+ BOOK ANOTHER ORDER</Text>
           </TouchableOpacity>
         </View>
@@ -65,35 +66,37 @@ export default function OrderSuccessModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    backgroundColor: "rgba(11, 37, 24, 0.7)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24
   },
   card: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.surface,
     borderRadius: 20,
     padding: 24,
     width: "100%",
     maxWidth: 380,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
-    elevation: 8
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
   iconCircle: {
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: "#10b981",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16
   },
   iconCircleOffline: {
-    backgroundColor: "#f59e0b"
+    backgroundColor: COLORS.accentGold
   },
   iconText: {
     fontSize: 32,
@@ -103,25 +106,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#0f172a",
+    color: COLORS.primary,
     marginBottom: 6,
     textAlign: "center"
   },
   subtitle: {
     fontSize: 13,
-    color: "#64748b",
+    color: COLORS.textMuted,
     textAlign: "center",
     lineHeight: 18,
     marginBottom: 16
   },
   detailsBox: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: 12,
     padding: 14,
     width: "100%",
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#e2e8f0"
+    borderColor: COLORS.border
   },
   row: {
     flexDirection: "row",
@@ -131,21 +134,21 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   value: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#0f172a"
+    color: COLORS.textDark
   },
   valueHighlight: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#2563eb"
+    color: COLORS.primaryLight
   },
   totalRow: {
     borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
+    borderTopColor: COLORS.borderLight,
     paddingTop: 8,
     marginTop: 4,
     marginBottom: 0
@@ -153,23 +156,28 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#0f172a"
+    color: COLORS.primary
   },
   totalValue: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#16a34a"
+    color: COLORS.primary
   },
   actionBtn: {
-    backgroundColor: "#2563eb",
+    backgroundColor: COLORS.primary,
     width: "100%",
     paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center"
+    borderRadius: 14,
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3
   },
   actionBtnText: {
     color: "#ffffff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.5
   }

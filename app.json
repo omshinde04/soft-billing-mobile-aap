@@ -1,24 +1,27 @@
 {
   "expo": {
-    "name": "soft-billing-mobile-aap",
-    "slug": "soft-billing-mobile-aap",
+    "name": "GaavBilling",
+    "slug": "gaavbilling",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/gaavbilling-logo.jpg",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/gaavbilling-logo.jpg",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8FAF6"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#1B4332",
+        "foregroundImage": "./assets/gaavbilling-logo.jpg"
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/gaavbilling-logo.jpg"
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator
 } from "react-native";
+import { COLORS } from "../theme/colors";
 
 export default function RecentOrdersModal({
   visible,
@@ -29,8 +30,10 @@ export default function RecentOrdersModal({
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.title}>Orders History</Text>
-              <Text style={styles.subtitle}>Recent field orders recorded on this phone</Text>
+              <Text style={styles.title}>Orders History • मागील ऑर्डर्स</Text>
+              <Text style={styles.subtitle}>
+                Recent field orders recorded on this phone
+              </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
@@ -47,6 +50,7 @@ export default function RecentOrdersModal({
               style={styles.syncBtn}
               onPress={onSyncOffline}
               disabled={isSyncing}
+              activeOpacity={0.8}
             >
               {isSyncing ? (
                 <ActivityIndicator size="small" color="#ffffff" />
@@ -62,7 +66,7 @@ export default function RecentOrdersModal({
             keyExtractor={(item, idx) => item.order_number || String(idx)}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => {
-              const isReplaced = item.is_replaced || item.status === "Replaced" || item.status === "Cancelled";
+              const isReplaced = item.is_replaced || item.status === "Replaced" || item.status === "Cancelled" || (item.notes && item.notes.includes("[Replaced by"));
               const isOffline = item.status === "Offline Queued";
               const isRevised = item.is_revision || item.status === "Revised";
               const isDispatched = item.status === "Dispatched" || isRevised;
@@ -105,7 +109,7 @@ export default function RecentOrdersModal({
                         ]}
                       >
                         {isReplaced
-                          ? `Replaced by #${item.replaced_by || "New"}`
+                          ? `Replaced by #${item.replaced_by || "Revised"}`
                           : item.status || "Dispatched"}
                       </Text>
                     </View>
@@ -189,11 +193,11 @@ export default function RecentOrdersModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(11, 37, 24, 0.65)",
     justifyContent: "flex-end"
   },
   container: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     height: "85%",
@@ -206,17 +210,17 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
-    color: "#0f172a"
+    color: COLORS.primary
   },
   subtitle: {
-    fontSize: 12,
-    color: "#64748b",
-    marginTop: 2
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 1
   },
   closeBtn: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: COLORS.surfaceAlt,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -226,17 +230,17 @@ const styles = StyleSheet.create({
   closeBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   syncBanner: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     padding: 12,
     borderRadius: 12,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: COLORS.border,
     marginBottom: 12
   },
   syncTextCol: {
@@ -246,14 +250,14 @@ const styles = StyleSheet.create({
   syncBannerTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#0f172a"
+    color: COLORS.primary
   },
   syncBannerSub: {
     fontSize: 11,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   syncBtn: {
-    backgroundColor: "#2563eb",
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8
@@ -267,21 +271,21 @@ const styles = StyleSheet.create({
     paddingBottom: 24
   },
   orderCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    shadowColor: "#000",
+    borderColor: COLORS.border,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1
   },
   orderCardReplaced: {
-    backgroundColor: "#f8fafc",
-    borderColor: "#cbd5e1",
+    backgroundColor: COLORS.surfaceAlt,
+    borderColor: COLORS.borderLight,
     opacity: 0.8
   },
   orderTop: {
@@ -298,14 +302,14 @@ const styles = StyleSheet.create({
   orderNum: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#2563eb"
+    color: COLORS.primary
   },
   orderNumStrikethrough: {
-    color: "#64748b",
+    color: COLORS.textLight,
     textDecorationLine: "line-through"
   },
   revisionPill: {
-    backgroundColor: "#fef3c7",
+    backgroundColor: COLORS.accentLight,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4
@@ -313,7 +317,7 @@ const styles = StyleSheet.create({
   revisionPillText: {
     fontSize: 9,
     fontWeight: "800",
-    color: "#b45309"
+    color: COLORS.accentAmber
   },
   statusPill: {
     paddingHorizontal: 8,
@@ -321,63 +325,63 @@ const styles = StyleSheet.create({
     borderRadius: 12
   },
   statusDispatched: {
-    backgroundColor: "#ecfdf5"
+    backgroundColor: COLORS.primaryWash
   },
   statusOffline: {
-    backgroundColor: "#fef3c7"
+    backgroundColor: COLORS.accentLight
   },
   statusPillReplaced: {
-    backgroundColor: "#fee2e2"
+    backgroundColor: COLORS.dangerBg
   },
   statusText: {
     fontSize: 10,
     fontWeight: "700"
   },
   statusTextDispatched: {
-    color: "#059669"
+    color: COLORS.primaryLight
   },
   statusTextOffline: {
-    color: "#d97706"
+    color: COLORS.accentAmber
   },
   statusTextReplaced: {
-    color: "#b91c1c"
+    color: COLORS.danger
   },
   shopName: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0f172a",
+    color: COLORS.textDark,
     marginBottom: 4
   },
   textMuted: {
-    color: "#94a3b8"
+    color: COLORS.textLight
   },
   metaRow: {
     marginBottom: 6
   },
   metaText: {
     fontSize: 11,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   notesText: {
     fontSize: 11,
-    color: "#0284c7",
+    color: COLORS.primaryLight,
     fontStyle: "italic",
     marginTop: 2
   },
   itemsPreview: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     padding: 8,
     borderRadius: 6,
     marginBottom: 8
   },
   previewLine: {
     fontSize: 11,
-    color: "#475569",
+    color: COLORS.textDark,
     marginBottom: 2
   },
   moreItemsText: {
     fontSize: 10,
-    color: "#94a3b8",
+    color: COLORS.textLight,
     fontStyle: "italic"
   },
   bottomRow: {
@@ -385,40 +389,40 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    borderTopColor: COLORS.borderLight,
     paddingTop: 8
   },
   itemCountText: {
     fontSize: 11,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   grandTotalText: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#16a34a"
+    color: COLORS.primary
   },
   editBtn: {
-    backgroundColor: "#eff6ff",
+    backgroundColor: COLORS.primaryWash,
     borderWidth: 1,
-    borderColor: "#bfdbfe",
+    borderColor: COLORS.primaryLight,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8
   },
   editBtnText: {
-    color: "#2563eb",
+    color: COLORS.primaryLight,
     fontSize: 12,
     fontWeight: "700"
   },
   supersededBadge: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: COLORS.surfaceAlt,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6
   },
   supersededBadgeText: {
     fontSize: 11,
-    color: "#64748b",
+    color: COLORS.textLight,
     fontWeight: "600"
   },
   emptyView: {
@@ -432,12 +436,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0f172a",
+    color: COLORS.primary,
     marginBottom: 4
   },
   emptySub: {
     fontSize: 12,
-    color: "#64748b",
+    color: COLORS.textMuted,
     textAlign: "center"
   }
 });

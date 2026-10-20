@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput
+} from "react-native";
+import { COLORS } from "../theme/colors";
 
 export default function ProductCard({
   product,
@@ -9,11 +16,13 @@ export default function ProductCard({
   onSetQuantity
 }) {
   const [inputText, setInputText] = useState(quantity > 0 ? String(quantity) : "");
+  const [isFocused, setIsFocused] = useState(false);
 
-  // Keep local input in sync whenever parent quantity changes (e.g. from cart or edit order load)
   useEffect(() => {
-    setInputText(quantity > 0 ? String(quantity) : "");
-  }, [quantity]);
+    if (!isFocused) {
+      setInputText(quantity > 0 ? String(quantity) : "");
+    }
+  }, [quantity, isFocused]);
 
   const rate = Number(product.selling_rate || product.rate || 0);
   const mrp = Number(product.mrp || rate);
@@ -21,11 +30,23 @@ export default function ProductCard({
   const taxRate = Number(product.tax_rate || 0);
 
   const handleTextChange = (text) => {
-    setInputText(text);
     const clean = text.replace(/[^0-9]/g, "");
+    setInputText(clean);
     const val = clean === "" ? 0 : parseInt(clean, 10);
     if (!isNaN(val) && onSetQuantity) {
       onSetQuantity(product.id, val);
+    }
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const val = parseInt(inputText || "0", 10);
+    if (isNaN(val) || val <= 0) {
+      setInputText("");
+      if (onSetQuantity) onSetQuantity(product.id, 0);
+    } else {
+      setInputText(String(val));
+      if (onSetQuantity) onSetQuantity(product.id, val);
     }
   };
 
@@ -39,7 +60,7 @@ export default function ProductCard({
   };
 
   return (
-    <View style={[styles.card, quantity > 0 && styles.activeCard]}>
+    <View style={[styles.card, (quantity > 0 || isFocused) && styles.activeCard]}>
       {/* Top Details & Action Block */}
       <View style={styles.topRow}>
         <View style={styles.infoCol}>
@@ -63,7 +84,7 @@ export default function ProductCard({
 
         {/* Quantity Stepper & Direct Typing Input */}
         <View style={styles.actionCol}>
-          {quantity > 0 ? (
+          {quantity > 0 || isFocused ? (
             <View style={styles.stepperBox}>
               <TouchableOpacity
                 style={styles.stepBtn}
@@ -78,9 +99,11 @@ export default function ProductCard({
                 keyboardType="numeric"
                 selectTextOnFocus
                 value={inputText}
+                onFocus={() => setIsFocused(true)}
+                onBlur={handleBlur}
                 onChangeText={handleTextChange}
                 placeholder="0"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor="#879B8F"
               />
 
               <TouchableOpacity
@@ -149,21 +172,21 @@ export default function ProductCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    shadowColor: "#000",
+    borderColor: COLORS.border,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1
   },
   activeCard: {
-    borderColor: "#3b82f6",
-    backgroundColor: "#f8faff"
+    borderColor: COLORS.primaryLight,
+    backgroundColor: COLORS.primaryWash
   },
   topRow: {
     flexDirection: "row",
@@ -177,8 +200,8 @@ const styles = StyleSheet.create({
   },
   productName: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#0f172a",
+    fontWeight: "800",
+    color: COLORS.primary,
     marginBottom: 4,
     lineHeight: 18
   },
@@ -188,41 +211,46 @@ const styles = StyleSheet.create({
     gap: 6
   },
   brandBadge: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: COLORS.surfaceAlt,
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 4
   },
   brandBadgeText: {
     fontSize: 10,
-    color: "#475569",
-    fontWeight: "600"
+    color: COLORS.textMuted,
+    fontWeight: "700"
   },
   taxBadge: {
-    backgroundColor: "#ecfdf5",
+    backgroundColor: COLORS.primaryWash,
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 4,
     borderWidth: 0.5,
-    borderColor: "#a7f3d0"
+    borderColor: COLORS.border
   },
   taxBadgeText: {
     fontSize: 10,
-    color: "#059669",
+    color: COLORS.primaryLight,
     fontWeight: "700"
   },
   unitText: {
     fontSize: 11,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   actionCol: {
     alignItems: "flex-end"
   },
   addBtn: {
-    backgroundColor: "#2563eb",
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8
+    borderRadius: 10,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2
   },
   addBtnText: {
     color: "#ffffff",
@@ -236,11 +264,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: COLORS.primaryLight,
     overflow: "hidden"
   },
   stepBtn: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     width: 32,
     height: 34,
     alignItems: "center",
@@ -249,10 +277,10 @@ const styles = StyleSheet.create({
   stepBtnText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#475569"
+    color: COLORS.primary
   },
   stepAddBtn: {
-    backgroundColor: "#2563eb"
+    backgroundColor: COLORS.primary
   },
   stepAddBtnText: {
     fontSize: 16,
@@ -266,15 +294,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 13,
     fontWeight: "900",
-    color: "#0f172a",
-    backgroundColor: "#eff6ff"
+    color: COLORS.primaryDark,
+    backgroundColor: "#ffffff"
   },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    borderTopColor: COLORS.borderLight,
     paddingTop: 8
   },
   priceBlock: {
@@ -284,27 +312,27 @@ const styles = StyleSheet.create({
   },
   rateLabel: {
     fontSize: 11,
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   rateValue: {
     fontSize: 14,
-    fontWeight: "800",
-    color: "#0f172a"
+    fontWeight: "900",
+    color: COLORS.primary
   },
   mrpCrossed: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: COLORS.textLight,
     textDecorationLine: "line-through"
   },
   marginBadge: {
-    backgroundColor: "#eff6ff",
+    backgroundColor: COLORS.accentLight,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4
   },
   marginText: {
     fontSize: 10,
-    color: "#2563eb",
+    color: COLORS.accentAmber,
     fontWeight: "700"
   },
   bulkRow: {
@@ -312,16 +340,16 @@ const styles = StyleSheet.create({
     gap: 4
   },
   bulkPill: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: COLORS.surfaceAlt,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#e2e8f0"
+    borderColor: COLORS.border
   },
   bulkText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#475569"
+    color: COLORS.primaryLight
   }
 });

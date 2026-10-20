@@ -1,16 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  FlatList,
-  TextInput
+  TextInput,
+  FlatList
 } from "react-native";
+import { COLORS } from "../theme/colors";
 
 export default function RetailerSelector({
-  retailers,
+  retailers = [],
   selectedRetailer,
   onSelectRetailer,
   currentBeat
@@ -18,15 +19,17 @@ export default function RetailerSelector({
   const [modalVisible, setModalVisible] = useState(false);
   const [search, setSearch] = useState("");
 
-  const filteredRetailers = retailers.filter(r => {
-    const matchesBeat = !currentBeat || r.beat_name === currentBeat;
-    const matchesSearch =
-      !search ||
-      r.shop_name?.toLowerCase().includes(search.toLowerCase()) ||
-      r.contact_person?.toLowerCase().includes(search.toLowerCase()) ||
-      r.phone?.includes(search);
-    return matchesBeat && matchesSearch;
-  });
+  const filteredRetailers = useMemo(() => {
+    return retailers.filter(r => {
+      const matchBeat = !currentBeat || r.beat_name === currentBeat;
+      const matchSearch =
+        !search ||
+        r.shop_name?.toLowerCase().includes(search.toLowerCase()) ||
+        r.contact_person?.toLowerCase().includes(search.toLowerCase()) ||
+        r.phone?.includes(search);
+      return matchBeat && matchSearch;
+    });
+  }, [retailers, currentBeat, search]);
 
   return (
     <View style={styles.container}>
@@ -36,8 +39,8 @@ export default function RetailerSelector({
         activeOpacity={0.8}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.sectionTitle}>RETAILER (STORE)</Text>
-          <Text style={styles.changeAction}>Tap to Change ▾</Text>
+          <Text style={styles.sectionTitle}>DELIVERY STORE / KIRANA</Text>
+          <Text style={styles.changeAction}>Change Store ▾</Text>
         </View>
 
         {selectedRetailer ? (
@@ -49,8 +52,8 @@ export default function RetailerSelector({
               </Text>
             </View>
             <View style={styles.metaRow}>
-              <Text style={styles.contactPerson}>
-                👤 {selectedRetailer.contact_person || "Proprietor"} • 📞 {selectedRetailer.phone || "No Phone"}
+              <Text style={styles.contactPerson} numberOfLines={1}>
+                👤 {selectedRetailer.contact_person || "Kirana Owner"} • 📞 {selectedRetailer.phone || "No Phone"}
               </Text>
             </View>
             <View style={styles.bottomRow}>
@@ -85,7 +88,10 @@ export default function RetailerSelector({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Retailer / Kirana</Text>
+              <View>
+                <Text style={styles.modalTitle}>Select Delivery Store / Kirana</Text>
+                <Text style={styles.modalSubtitle}>Filtered by route: {currentBeat || "All Beats"}</Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 style={styles.closeBtn}
@@ -96,8 +102,8 @@ export default function RetailerSelector({
 
             <TextInput
               style={styles.searchInput}
-              placeholder="Search store name, person, phone..."
-              placeholderTextColor="#94a3b8"
+              placeholder="🔍 Search shop name, contact, phone..."
+              placeholderTextColor="#879B8F"
               value={search}
               onChangeText={setSearch}
             />
@@ -117,7 +123,9 @@ export default function RetailerSelector({
                     }}
                   >
                     <View style={styles.itemMain}>
-                      <Text style={styles.itemShopName}>{item.shop_name}</Text>
+                      <Text style={[styles.itemShopName, isSelected && styles.itemShopNameSelected]}>
+                        {item.shop_name}
+                      </Text>
                       <Text style={styles.itemSub}>
                         {item.contact_person} • {item.address}
                       </Text>
@@ -155,15 +163,15 @@ const styles = StyleSheet.create({
     paddingTop: 12
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
     elevation: 2
   },
   cardHeader: {
@@ -175,13 +183,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#64748b",
+    color: COLORS.primaryLight,
     letterSpacing: 0.5
   },
   changeAction: {
     fontSize: 11,
-    color: "#2563eb",
-    fontWeight: "600"
+    color: COLORS.primaryLight,
+    fontWeight: "700"
   },
   retailerInfo: {},
   storeNameRow: {
@@ -195,8 +203,8 @@ const styles = StyleSheet.create({
   },
   storeName: {
     fontSize: 15,
-    fontWeight: "700",
-    color: "#0f172a",
+    fontWeight: "800",
+    color: COLORS.primary,
     flex: 1
   },
   metaRow: {
@@ -204,7 +212,7 @@ const styles = StyleSheet.create({
   },
   contactPerson: {
     fontSize: 12,
-    color: "#475569"
+    color: COLORS.textMuted
   },
   bottomRow: {
     flexDirection: "row",
@@ -213,33 +221,33 @@ const styles = StyleSheet.create({
   },
   beatBadge: {
     fontSize: 11,
-    color: "#0284c7",
+    color: COLORS.primaryLight,
     fontWeight: "600"
   },
   dueBadge: {
-    backgroundColor: "#fef2f2",
+    backgroundColor: COLORS.dangerBg,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: "#fecaca"
   },
   dueBadgeText: {
     fontSize: 11,
-    color: "#dc2626",
+    color: COLORS.danger,
     fontWeight: "700"
   },
   clearBadge: {
-    backgroundColor: "#f0fdf4",
+    backgroundColor: COLORS.primaryWash,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#bbf7d0"
+    borderColor: COLORS.border
   },
   clearBadgeText: {
     fontSize: 11,
-    color: "#16a34a",
+    color: COLORS.primaryLight,
     fontWeight: "700"
   },
   unselectedContainer: {
@@ -248,19 +256,19 @@ const styles = StyleSheet.create({
   },
   unselectedText: {
     fontSize: 13,
-    color: "#2563eb",
+    color: COLORS.primary,
     fontWeight: "700"
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(11, 37, 24, 0.6)",
     justifyContent: "flex-end"
   },
   modalContent: {
-    backgroundColor: "#ffffff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "80%",
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "82%",
     padding: 16
   },
   modalHeader: {
@@ -270,12 +278,17 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a"
+    fontSize: 17,
+    fontWeight: "800",
+    color: COLORS.primary
+  },
+  modalSubtitle: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 1
   },
   closeBtn: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: COLORS.surfaceAlt,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -285,17 +298,17 @@ const styles = StyleSheet.create({
   closeBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#64748b"
+    color: COLORS.textMuted
   },
   searchInput: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
+    borderColor: COLORS.border,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
-    color: "#0f172a",
+    fontSize: 13,
+    color: COLORS.textDark,
     marginBottom: 12
   },
   listContent: {
@@ -307,12 +320,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9"
+    borderBottomColor: COLORS.borderLight
   },
   selectedItem: {
-    backgroundColor: "#eff6ff"
+    backgroundColor: COLORS.primaryWash,
+    borderWidth: 1,
+    borderColor: COLORS.primaryLight
   },
   itemMain: {
     flex: 1,
@@ -321,34 +336,37 @@ const styles = StyleSheet.create({
   itemShopName: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0f172a",
+    color: COLORS.textDark,
     marginBottom: 2
+  },
+  itemShopNameSelected: {
+    color: COLORS.primary
   },
   itemSub: {
     fontSize: 11,
-    color: "#64748b",
+    color: COLORS.textMuted,
     marginBottom: 2
   },
   itemPhone: {
     fontSize: 11,
-    color: "#0284c7"
+    color: COLORS.primaryLight
   },
   itemRight: {
     alignItems: "flex-end"
   },
   listDueText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#dc2626"
+    color: COLORS.danger
   },
   listClearText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#16a34a"
+    color: COLORS.primaryLight
   },
   checkMark: {
     fontSize: 16,
-    color: "#2563eb",
+    color: COLORS.primary,
     fontWeight: "bold",
     marginTop: 4
   },
@@ -358,6 +376,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: "#94a3b8"
+    color: COLORS.textMuted
   }
 });

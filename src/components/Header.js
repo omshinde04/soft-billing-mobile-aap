@@ -1,5 +1,13 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Image
+} from "react-native";
+import { COLORS } from "../theme/colors";
 
 export default function Header({
   salesmen = [],
@@ -8,35 +16,39 @@ export default function Header({
   beats = [],
   currentBeat,
   onSelectBeat,
-  onOpenRecent,
-  onRefreshCatalog,
-  isRefreshing,
   isOfflineMode,
   onToggleOfflineMode,
   offlineQueueCount = 0,
+  onRefreshCatalog,
+  isRefreshing,
+  onOpenRecent,
   onLogout
 }) {
   return (
     <View style={styles.headerContainer}>
-      {/* Top Brand Bar */}
+      {/* Top Brand & Mode Bar */}
       <View style={styles.topRow}>
         <View style={styles.titleRow}>
-          <View style={styles.boltBadge}>
-            <Text style={styles.boltText}>⚡</Text>
+          <View style={styles.logoFrame}>
+            <Image
+              source={require("../../assets/gaavbilling-logo.jpg")}
+              style={styles.logoImage}
+              resizeMode="cover"
+            />
           </View>
           <View>
             <View style={styles.titleWithBadge}>
-              <Text style={styles.appTitle}>Billing-Soft</Text>
+              <Text style={styles.appTitle}>GaavBilling</Text>
               <View style={styles.mobileBadge}>
                 <Text style={styles.mobileBadgeText}>FIELD APP</Text>
               </View>
             </View>
-            <Text style={styles.appSubtitle}>FMCG Order Booking</Text>
+            <Text style={styles.appSubtitle}>गाव बिलिंग • FMCG Order Booking</Text>
           </View>
         </View>
 
+        {/* Action Buttons: Network Mode, Sync & Orders History */}
         <View style={styles.actionButtons}>
-          {/* Network Simulator Toggle */}
           <TouchableOpacity
             style={[styles.modeButton, isOfflineMode ? styles.modeOffline : styles.modeOnline]}
             onPress={onToggleOfflineMode}
@@ -87,7 +99,7 @@ export default function Header({
                   {currentSalesman.name}
                 </Text>
                 <View style={styles.roleBadge}>
-                  <Text style={styles.roleBadgeText}>SALESMAN</Text>
+                  <Text style={styles.roleBadgeText}>FIELD SALESMAN</Text>
                 </View>
               </View>
               <Text style={styles.salesmanPhone}>
@@ -135,12 +147,12 @@ export default function Header({
 
 const styles = StyleSheet.create({
   headerContainer: {
-    backgroundColor: "#0f172a",
+    backgroundColor: COLORS.primary,
     paddingTop: Platform.OS === "ios" ? 14 : (Platform.OS === "android" ? 38 : 16),
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b"
+    borderBottomColor: COLORS.primaryDark
   },
   topRow: {
     flexDirection: "row",
@@ -152,23 +164,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center"
   },
+  logoFrame: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#ffffff",
+    padding: 2,
+    marginRight: 10,
+    borderWidth: 1.5,
+    borderColor: COLORS.primarySoft,
+    overflow: "hidden"
+  },
+  logoImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 17
+  },
   titleWithBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6
-  },
-  boltBadge: {
-    backgroundColor: "#f59e0b",
-    width: 28,
-    height: 28,
-    borderRadius: 7,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8
-  },
-  boltText: {
-    fontSize: 16,
-    fontWeight: "bold"
   },
   appTitle: {
     fontSize: 18,
@@ -177,23 +192,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3
   },
   mobileBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.25)",
+    backgroundColor: "rgba(216, 243, 220, 0.2)",
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.45)"
+    borderColor: "rgba(216, 243, 220, 0.4)"
   },
   mobileBadgeText: {
-    color: "#60a5fa",
+    color: COLORS.primarySoft,
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 0.5
   },
   appSubtitle: {
-    fontSize: 11,
-    color: "#94a3b8",
-    marginTop: 1
+    fontSize: 10,
+    color: COLORS.primarySoft,
+    marginTop: 1,
+    fontWeight: "500"
   },
   actionButtons: {
     flexDirection: "row",
@@ -207,36 +223,36 @@ const styles = StyleSheet.create({
     borderWidth: 1
   },
   modeOnline: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderColor: "rgba(16, 185, 129, 0.4)"
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderColor: "rgba(255, 255, 255, 0.3)"
   },
   modeOffline: {
-    backgroundColor: "rgba(245, 158, 11, 0.2)",
-    borderColor: "rgba(245, 158, 11, 0.6)"
+    backgroundColor: "rgba(244, 162, 97, 0.25)",
+    borderColor: "rgba(244, 162, 97, 0.6)"
   },
   modeButtonText: {
     fontSize: 11,
     fontWeight: "800"
   },
   modeOnlineText: {
-    color: "#34d399"
+    color: "#ffffff"
   },
   modeOfflineText: {
-    color: "#fbbf24"
+    color: COLORS.accentGold
   },
   iconButton: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     width: 34,
     height: 34,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "rgba(255, 255, 255, 0.2)",
     position: "relative"
   },
   historyButton: {
-    backgroundColor: "#1e293b"
+    backgroundColor: "rgba(255, 255, 255, 0.15)"
   },
   iconButtonText: {
     fontSize: 14
@@ -245,7 +261,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    backgroundColor: "#ef4444",
+    backgroundColor: COLORS.accent,
     width: 18,
     height: 18,
     borderRadius: 9,
@@ -258,7 +274,7 @@ const styles = StyleSheet.create({
     fontWeight: "900"
   },
   salesmanProfileCard: {
-    backgroundColor: "rgba(30, 41, 59, 0.85)",
+    backgroundColor: "rgba(11, 37, 24, 0.5)",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -266,7 +282,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "rgba(255, 255, 255, 0.1)",
     marginBottom: 8
   },
   profileLeft: {
@@ -279,7 +295,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#3b82f6",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 8
@@ -303,31 +319,31 @@ const styles = StyleSheet.create({
     color: "#ffffff"
   },
   roleBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    backgroundColor: "rgba(64, 145, 108, 0.4)",
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4
   },
   roleBadgeText: {
-    color: "#34d399",
+    color: COLORS.primarySoft,
     fontSize: 8,
     fontWeight: "800"
   },
   salesmanPhone: {
     fontSize: 10,
-    color: "#94a3b8",
+    color: COLORS.primarySoft,
     marginTop: 1
   },
   logoutButton: {
-    backgroundColor: "#334155",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#475569"
+    borderColor: "rgba(255, 255, 255, 0.2)"
   },
   logoutButtonText: {
-    color: "#f87171",
+    color: "#fca5a5",
     fontSize: 11,
     fontWeight: "700"
   },
@@ -338,16 +354,16 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
+    backgroundColor: "rgba(11, 37, 24, 0.6)",
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#334155"
+    borderColor: "rgba(255, 255, 255, 0.12)"
   },
   pillLabel: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: COLORS.primarySoft,
     marginRight: 6,
     fontWeight: "600"
   },
@@ -357,6 +373,6 @@ const styles = StyleSheet.create({
   pillValue: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#38bdf8"
+    color: "#ffffff"
   }
 });
