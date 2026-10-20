@@ -4,7 +4,8 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity
+  TouchableOpacity,
+  ScrollView
 } from "react-native";
 import {
   ClipboardList,
@@ -12,10 +13,12 @@ import {
   Clock,
   Edit3,
   RefreshCw,
-  MessageSquare
+  MessageSquare,
+  BarChart3
 } from "lucide-react";
 import { COLORS } from "../theme/colors";
 import { openWhatsAppReceipt } from "../services/whatsappService";
+import SalesAnalyticsView from "./SalesAnalyticsView";
 
 export default function OrdersScreen({
   orders = [],
@@ -24,6 +27,7 @@ export default function OrdersScreen({
   isSyncing = false,
   onStartNewOrder
 }) {
+  const [viewMode, setViewMode] = useState("list"); // 'list' | 'analytics'
   const [filter, setFilter] = useState("all");
   const [expandedOrder, setExpandedOrder] = useState(null);
 
@@ -38,195 +42,230 @@ export default function OrdersScreen({
 
   return (
     <View style={styles.container}>
-      {/* Summary KPI Banner */}
-      <View style={styles.kpiCard}>
-        <View style={styles.kpiLeft}>
-          <Text style={styles.kpiLabel}>आजचे एकूण बुकिंग (Today's Booking)</Text>
-          <Text style={styles.kpiValue}>₹{totalValue.toFixed(2)}</Text>
-          <Text style={styles.kpiSub}>
-            {orders.length} {orders.length === 1 ? "Order" : "Orders"} Placed
-          </Text>
-        </View>
-
-        {pendingCount > 0 && (
-          <TouchableOpacity
-            style={styles.syncPendingBtn}
-            onPress={onSyncOffline}
-            disabled={isSyncing}
-            activeOpacity={0.8}
-          >
-            <RefreshCw size={14} color="#ffffff" />
-            <Text style={styles.syncPendingText}>
-              {isSyncing ? "Syncing..." : `SYNC ${pendingCount} ⚡`}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.filterRow}>
+      {/* 1. View Mode Switcher Header: Orders List vs Sales Analytics */}
+      <View style={styles.viewModeHeader}>
         <TouchableOpacity
-          style={[styles.filterPill, filter === "all" && styles.activeFilterPill]}
-          onPress={() => setFilter("all")}
+          style={[styles.viewModeBtn, viewMode === "list" && styles.viewModeBtnActive]}
+          onPress={() => setViewMode("list")}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.filterText, filter === "all" && styles.activeFilterText]}>
-            सर्व ऑर्डर्स ({orders.length})
+          <ClipboardList size={14} color={viewMode === "list" ? "#ffffff" : COLORS.primaryLight} />
+          <Text style={[styles.viewModeText, viewMode === "list" && styles.viewModeTextActive]}>
+            ऑर्डर्स यादी ({orders.length})
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.filterPill, filter === "synced" && styles.activeFilterPill]}
-          onPress={() => setFilter("synced")}
+          style={[styles.viewModeBtn, viewMode === "analytics" && styles.viewModeBtnActive]}
+          onPress={() => setViewMode("analytics")}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.filterText, filter === "synced" && styles.activeFilterText]}>
-            ⚡ Synced ({orders.length - pendingCount})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.filterPill, filter === "pending" && styles.activeFilterPill]}
-          onPress={() => setFilter("pending")}
-        >
-          <Text style={[styles.filterText, filter === "pending" && styles.activeFilterText]}>
-            ⏳ In Phone ({pendingCount})
+          <BarChart3 size={14} color={viewMode === "analytics" ? "#ffffff" : COLORS.primaryLight} />
+          <Text style={[styles.viewModeText, viewMode === "analytics" && styles.viewModeTextActive]}>
+            विक्री आलेख (Analytics 📊)
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Orders List */}
-      <FlatList
-        data={filteredOrders}
-        keyExtractor={(item, index) => item.order_number || String(index)}
-        contentContainerStyle={styles.listContainer}
-        renderItem={({ item }) => {
-          const isSynced = item.synced === true || item.status === "synced";
-          const isExpanded = expandedOrder === item.order_number;
-          const itemsList = Array.isArray(item.items) ? item.items : [];
-
-          return (
-            <View style={styles.orderCard}>
-              <TouchableOpacity
-                style={styles.orderHeader}
-                onPress={() => setExpandedOrder(isExpanded ? null : item.order_number)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.orderHeaderLeft}>
-                  <View style={styles.orderNumberRow}>
-                    <Text style={styles.orderNumber}>#{item.order_number}</Text>
-                    {item.is_revision && (
-                      <View style={styles.revisionBadge}>
-                        <Text style={styles.revisionText}>REVISED</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.retailerName} numberOfLines={1}>
-                    🏪 {item.retailer_name || "Kirana Store"}
-                  </Text>
-                  <Text style={styles.beatName}>
-                    📍 {item.beat_name || "Market Beat"} • {item.created_at ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"}
-                  </Text>
-                </View>
-
-                <View style={styles.orderHeaderRight}>
-                  <Text style={styles.orderTotal}>₹{Number(item.grand_total || 0).toFixed(2)}</Text>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      isSynced ? styles.statusPillSynced : styles.statusPillPending
-                    ]}
-                  >
-                    {isSynced ? (
-                      <CheckCircle size={10} color={COLORS.primaryLight} />
-                    ) : (
-                      <Clock size={10} color="#B45309" />
-                    )}
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        isSynced ? styles.textSynced : styles.textPending
-                      ]}
-                    >
-                      {isSynced ? "Synced" : "In Phone"}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-
-              {/* Items Breakdown on Expand */}
-              {isExpanded && (
-                <View style={styles.expandedContent}>
-                  <Text style={styles.itemsHeader}>Items in this order:</Text>
-                  {itemsList.map((it, idx) => (
-                    <View key={idx} style={styles.itemRow}>
-                      <Text style={styles.itemName} numberOfLines={1}>
-                        {it.item_name || it.name}
-                      </Text>
-                      <Text style={styles.itemQty}>
-                        {it.quantity} {it.unit || "PCS"} × ₹{Number(it.rate || it.selling_rate || 0).toFixed(2)}
-                      </Text>
-                      <Text style={styles.itemTotal}>
-                        ₹{Number(it.amount || ((it.quantity || 1) * (it.rate || it.selling_rate || 0))).toFixed(2)}
-                      </Text>
-                    </View>
-                  ))}
-
-                  {item.notes && (
-                    <Text style={styles.notesText}>📝 Notes: {item.notes}</Text>
-                  )}
-                </View>
-              )}
-
-              {/* Card Footer Actions */}
-              <View style={styles.cardFooter}>
-                <TouchableOpacity
-                  style={styles.detailsToggle}
-                  onPress={() => setExpandedOrder(isExpanded ? null : item.order_number)}
-                >
-                  <Text style={styles.detailsToggleText}>
-                    {isExpanded ? "Hide Details ▲" : `View ${itemsList.length} Items ▼`}
-                  </Text>
-                </TouchableOpacity>
-
-                <View style={styles.footerActionsRight}>
-                  {/* WhatsApp Receipt Share Button */}
-                  <TouchableOpacity
-                    style={styles.whatsAppOrderBtn}
-                    onPress={() => openWhatsAppReceipt(item.retailer_phone, item)}
-                    activeOpacity={0.8}
-                  >
-                    <MessageSquare size={13} color="#15803D" />
-                    <Text style={styles.whatsAppOrderText}>WhatsApp</Text>
-                  </TouchableOpacity>
-
-                  {/* Edit / Revise Button */}
-                  <TouchableOpacity
-                    style={styles.editBtn}
-                    onPress={() => onEditOrder(item)}
-                    activeOpacity={0.8}
-                  >
-                    <Edit3 size={13} color={COLORS.primary} />
-                    <Text style={styles.editBtnText}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+      {/* VIEW MODE 1: VISUAL SALES ANALYTICS */}
+      {viewMode === "analytics" ? (
+        <ScrollView style={styles.analyticsScroll} contentContainerStyle={styles.analyticsContent} showsVerticalScrollIndicator={false}>
+          <SalesAnalyticsView orders={orders} />
+        </ScrollView>
+      ) : (
+        /* VIEW MODE 2: ORDERS LIST */
+        <View style={styles.listWrapper}>
+          {/* Summary KPI Banner */}
+          <View style={styles.kpiCard}>
+            <View style={styles.kpiLeft}>
+              <Text style={styles.kpiLabel}>आजचे एकूण बुकिंग (Today's Booking)</Text>
+              <Text style={styles.kpiValue}>₹{totalValue.toFixed(2)}</Text>
+              <Text style={styles.kpiSub}>
+                {orders.length} {orders.length === 1 ? "Order" : "Orders"} Placed
+              </Text>
             </View>
-          );
-        }}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <ClipboardList size={40} color={COLORS.textLight} />
-            <Text style={styles.emptyTitle}>अद्याप कोणतीही ऑर्डर नोंदवली नाही</Text>
-            <Text style={styles.emptySub}>No orders recorded today yet.</Text>
+
+            {pendingCount > 0 && (
+              <TouchableOpacity
+                style={styles.syncPendingBtn}
+                onPress={onSyncOffline}
+                disabled={isSyncing}
+                activeOpacity={0.8}
+              >
+                <RefreshCw size={14} color="#ffffff" />
+                <Text style={styles.syncPendingText}>
+                  {isSyncing ? "Syncing..." : `SYNC ${pendingCount} ⚡`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Filter Tabs */}
+          <View style={styles.filterRow}>
             <TouchableOpacity
-              style={styles.newOrderBtn}
-              onPress={onStartNewOrder}
-              activeOpacity={0.85}
+              style={[styles.filterPill, filter === "all" && styles.activeFilterPill]}
+              onPress={() => setFilter("all")}
             >
-              <Text style={styles.newOrderBtnText}>+ BOOK NEW ORDER</Text>
+              <Text style={[styles.filterText, filter === "all" && styles.activeFilterText]}>
+                सर्व ऑर्डर्स ({orders.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterPill, filter === "synced" && styles.activeFilterPill]}
+              onPress={() => setFilter("synced")}
+            >
+              <Text style={[styles.filterText, filter === "synced" && styles.activeFilterText]}>
+                ⚡ Synced ({orders.length - pendingCount})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterPill, filter === "pending" && styles.activeFilterPill]}
+              onPress={() => setFilter("pending")}
+            >
+              <Text style={[styles.filterText, filter === "pending" && styles.activeFilterText]}>
+                ⏳ In Phone ({pendingCount})
+              </Text>
             </TouchableOpacity>
           </View>
-        }
-      />
+
+          {/* Orders List */}
+          <FlatList
+            data={filteredOrders}
+            keyExtractor={(item, index) => item.order_number || String(index)}
+            contentContainerStyle={styles.listContainer}
+            renderItem={({ item }) => {
+              const isSynced = item.synced === true || item.status === "synced";
+              const isExpanded = expandedOrder === item.order_number;
+              const itemsList = Array.isArray(item.items) ? item.items : [];
+
+              return (
+                <View style={styles.orderCard}>
+                  <TouchableOpacity
+                    style={styles.orderHeader}
+                    onPress={() => setExpandedOrder(isExpanded ? null : item.order_number)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.orderHeaderLeft}>
+                      <View style={styles.orderNumberRow}>
+                        <Text style={styles.orderNumber}>#{item.order_number}</Text>
+                        {item.is_revision && (
+                          <View style={styles.revisionBadge}>
+                            <Text style={styles.revisionText}>REVISED</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.retailerName} numberOfLines={1}>
+                        🏪 {item.retailer_name || "Kirana Store"}
+                      </Text>
+                      <Text style={styles.beatName}>
+                        📍 {item.beat_name || "Market Beat"} • {item.created_at ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"}
+                      </Text>
+                    </View>
+
+                    <View style={styles.orderHeaderRight}>
+                      <Text style={styles.orderTotal}>₹{Number(item.grand_total || 0).toFixed(2)}</Text>
+                      <View
+                        style={[
+                          styles.statusPill,
+                          isSynced ? styles.statusPillSynced : styles.statusPillPending
+                        ]}
+                      >
+                        {isSynced ? (
+                          <CheckCircle size={10} color={COLORS.primaryLight} />
+                        ) : (
+                          <Clock size={10} color="#B45309" />
+                        )}
+                        <Text
+                          style={[
+                            styles.statusPillText,
+                            isSynced ? styles.textSynced : styles.textPending
+                          ]}
+                        >
+                          {isSynced ? "Synced" : "In Phone"}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Items Breakdown on Expand */}
+                  {isExpanded && (
+                    <View style={styles.expandedContent}>
+                      <Text style={styles.itemsHeader}>Items in this order:</Text>
+                      {itemsList.map((it, idx) => (
+                        <View key={idx} style={styles.itemRow}>
+                          <Text style={styles.itemName} numberOfLines={1}>
+                            {it.item_name || it.name}
+                          </Text>
+                          <Text style={styles.itemQty}>
+                            {it.quantity} {it.unit || "PCS"} × ₹{Number(it.rate || it.selling_rate || 0).toFixed(2)}
+                          </Text>
+                          <Text style={styles.itemTotal}>
+                            ₹{Number(it.amount || ((it.quantity || 1) * (it.rate || it.selling_rate || 0))).toFixed(2)}
+                          </Text>
+                        </View>
+                      ))}
+
+                      {item.notes && (
+                        <Text style={styles.notesText}>📝 Notes: {item.notes}</Text>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Card Footer Actions */}
+                  <View style={styles.cardFooter}>
+                    <TouchableOpacity
+                      style={styles.detailsToggle}
+                      onPress={() => setExpandedOrder(isExpanded ? null : item.order_number)}
+                    >
+                      <Text style={styles.detailsToggleText}>
+                        {isExpanded ? "Hide Details ▲" : `View ${itemsList.length} Items ▼`}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.footerActionsRight}>
+                      {/* WhatsApp Receipt Share Button */}
+                      <TouchableOpacity
+                        style={styles.whatsAppOrderBtn}
+                        onPress={() => openWhatsAppReceipt(item.retailer_phone, item)}
+                        activeOpacity={0.8}
+                      >
+                        <MessageSquare size={13} color="#15803D" />
+                        <Text style={styles.whatsAppOrderText}>WhatsApp</Text>
+                      </TouchableOpacity>
+
+                      {/* Edit / Revise Button */}
+                      <TouchableOpacity
+                        style={styles.editBtn}
+                        onPress={() => onEditOrder(item)}
+                        activeOpacity={0.8}
+                      >
+                        <Edit3 size={13} color={COLORS.primary} />
+                        <Text style={styles.editBtnText}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyBox}>
+                <ClipboardList size={40} color={COLORS.textLight} />
+                <Text style={styles.emptyTitle}>अद्याप कोणतीही ऑर्डर नोंदवली नाही</Text>
+                <Text style={styles.emptySub}>No orders recorded today yet.</Text>
+                <TouchableOpacity
+                  style={styles.newOrderBtn}
+                  onPress={onStartNewOrder}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.newOrderBtnText}>+ BOOK NEW ORDER</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -235,6 +274,50 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background
+  },
+  viewModeHeader: {
+    flexDirection: "row",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: 8
+  },
+  viewModeBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt
+  },
+  viewModeBtnActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary
+  },
+  viewModeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.primaryLight
+  },
+  viewModeTextActive: {
+    color: "#ffffff",
+    fontWeight: "800"
+  },
+  listWrapper: {
+    flex: 1
+  },
+  analyticsScroll: {
+    flex: 1
+  },
+  analyticsContent: {
+    padding: 16,
+    paddingBottom: 90
   },
   kpiCard: {
     backgroundColor: COLORS.primary,

@@ -5,23 +5,17 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
-  Alert,
   Platform
 } from "react-native";
 import {
   User,
   MapPin,
-  Phone,
   LogOut,
   Sparkles,
-  TrendingUp,
-  ShoppingBag,
-  Store,
-  ShieldCheck,
   Check
 } from "lucide-react";
 import { COLORS } from "../theme/colors";
+import SalesAnalyticsView from "./SalesAnalyticsView";
 
 export default function ProfileScreen({
   salesman,
@@ -33,12 +27,9 @@ export default function ProfileScreen({
   orders = [],
   onLogout
 }) {
-  const totalValue = orders.reduce((sum, o) => sum + (Number(o.grand_total) || 0), 0);
-  const totalOrders = orders.length;
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Profile Header Card */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {/* 1. Profile Header Card */}
       <View style={styles.profileCard}>
         <View style={styles.avatarBox}>
           <Text style={styles.avatarText}>
@@ -59,36 +50,14 @@ export default function ProfileScreen({
         </View>
       </View>
 
-      {/* Today's Sales Performance */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <TrendingUp size={18} color={COLORS.primary} />
-          <Text style={styles.sectionTitle}>आजची कामगिरी (Today's Performance)</Text>
-        </View>
+      {/* 2. Visual Sales Performance & Product Charts */}
+      <SalesAnalyticsView orders={orders} />
 
-        <View style={styles.metricsRow}>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{totalOrders}</Text>
-            <Text style={styles.metricLabel}>Orders Booked</Text>
-          </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>₹{totalValue.toFixed(0)}</Text>
-            <Text style={styles.metricLabel}>Total Booking</Text>
-          </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{currentBeat ? "1" : "All"}</Text>
-            <Text style={styles.metricLabel}>Beat Active</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Select Active Route / Beat */}
+      {/* 3. Market Route / Beat Selector */}
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
           <MapPin size={18} color={COLORS.primary} />
-          <Text style={styles.sectionTitle}>मार्केट बीट (Market Route / Beat)</Text>
+          <Text style={styles.sectionTitle}>मार्केट बीट (Active Market Beat)</Text>
         </View>
 
         <View style={styles.beatsGrid}>
@@ -123,7 +92,7 @@ export default function ProfileScreen({
         </View>
       </View>
 
-      {/* Developer Attribution Card */}
+      {/* 4. Developer Branding Card */}
       <View style={styles.brandCard}>
         <View style={styles.brandTop}>
           <View style={styles.brandIcon}>
@@ -144,7 +113,7 @@ export default function ProfileScreen({
         </View>
       </View>
 
-      {/* Logout Action Button */}
+      {/* 5. Logout Action Button */}
       <TouchableOpacity
         style={styles.logoutBtn}
         onPress={onLogout}
@@ -174,7 +143,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: 16,
+    marginBottom: 14,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -242,7 +211,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: 16
+    marginBottom: 14
   },
   sectionHeader: {
     flexDirection: "row",
@@ -254,31 +223,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     color: COLORS.primary
-  },
-  metricsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  metricItem: {
-    flex: 1,
-    alignItems: "center"
-  },
-  metricValue: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: COLORS.primary
-  },
-  metricLabel: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginTop: 2,
-    fontWeight: "600"
-  },
-  metricDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: COLORS.border
   },
   beatsGrid: {
     gap: 8
