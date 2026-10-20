@@ -30,8 +30,9 @@ export default function CartModal({
       alert("Please select a retailer store before submitting the order.");
       return;
     }
-    if (!cartItems || cartItems.length === 0) {
-      alert("Your cart is empty. Add at least one item.");
+    const validItems = cartItems.filter(i => Number(i.quantity || 0) > 0);
+    if (!validItems || validItems.length === 0) {
+      alert("Your order is empty. Please set quantity for at least one product.");
       return;
     }
     onSubmitOrder({ notes });
@@ -50,10 +51,10 @@ export default function CartModal({
           <View style={styles.sheetHeader}>
             <View>
               <Text style={styles.sheetTitle}>
-                {editingOrder ? "✏️ Edit & Re-send Order" : "Review & Send Order"}
+                {editingOrder ? "✏️ Edit & Re-send Order" : "Review & Dispatch Order"}
               </Text>
               <Text style={styles.sheetSubtitle}>
-                {cartItems.length} {cartItems.length === 1 ? "Item" : "Items"} • {retailer?.shop_name || "No Retailer"}
+                {cartItems.length} {cartItems.length === 1 ? "Product" : "Products"} • {retailer?.shop_name || "Select Kirana"}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -64,80 +65,99 @@ export default function CartModal({
           {/* Edit Order Warning Notice if revising an existing order */}
           {editingOrder && (
             <View style={styles.revisingBanner}>
-              <Text style={styles.revisingBannerTitle}>
-                ⚠️ Revising Order #{editingOrder.order_number}
-              </Text>
-              <Text style={styles.revisingBannerSub}>
-                Any modifications made here will replace the previous order when submitted.
-              </Text>
+              <View style={styles.revisingRow}>
+                <Text style={styles.revisingIcon}>⚠️</Text>
+                <View style={styles.revisingTextCol}>
+                  <Text style={styles.revisingBannerTitle}>
+                    Revising Order #{editingOrder.order_number}
+                  </Text>
+                  <Text style={styles.revisingBannerSub}>
+                    Submitting this will replace previous order #{editingOrder.order_number} on desktop.
+                  </Text>
+                </View>
+              </View>
             </View>
           )}
 
-          <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             {/* Retailer Card */}
             <View style={styles.retailerCard}>
               <View style={styles.retailerTop}>
-                <Text style={styles.retailerLabel}>DELIVERY STORE</Text>
-                <Text style={styles.salesmanTag}>Taken by: {salesman?.name || "Salesman"}</Text>
+                <Text style={styles.retailerLabel}>DELIVERY STORE / KIRANA</Text>
+                <Text style={styles.salesmanTag}>👤 {salesman?.name || "Salesman"}</Text>
               </View>
               <Text style={styles.shopName}>{retailer?.shop_name || "No retailer selected"}</Text>
               <Text style={styles.shopSub}>
-                {retailer?.contact_person} • {retailer?.address}
+                {retailer?.contact_person ? `${retailer.contact_person} • ` : ""}{retailer?.address || "Market Address"}
               </Text>
-              <Text style={styles.shopPhone}>📞 {retailer?.phone}</Text>
+              <Text style={styles.shopPhone}>📞 {retailer?.phone || "No phone"}</Text>
             </View>
 
             {/* Items List */}
             <View style={styles.itemsSection}>
               <View style={styles.itemsHeaderRow}>
                 <Text style={styles.sectionHeader}>ORDER ITEMS</Text>
-                <Text style={styles.itemsHeaderHint}>Tap quantity box to type directly</Text>
+                <Text style={styles.itemsHeaderHint}>Type directly or use + / −</Text>
               </View>
+
               {cartItems.map((item, index) => {
                 const rate = Number(item.selling_rate || item.rate || 0);
-                const lineTaxable = rate * item.quantity;
+                const qty = Number(item.quantity || 0);
+                const lineTaxable = rate * qty;
                 const lineTotal = lineTaxable * (1 + Number(item.tax_rate || 0) / 100);
 
                 return (
                   <View key={item.id || index} style={styles.itemRow}>
                     <View style={styles.itemLeft}>
-                      <Text style={styles.itemName}>{item.name}</Text>
+                      <Text style={styles.itemName} numberOfLines={2}>
+                        {item.name}
+                      </Text>
                       <Text style={styles.itemMeta}>
                         ₹{rate.toFixed(2)} / {item.unit || "PCS"} • {item.tax_rate}% GST
                       </Text>
                     </View>
 
                     <View style={styles.itemRight}>
+                      {/* Stepper with controlled direct typing */}
                       <View style={styles.stepperMini}>
                         <TouchableOpacity
                           style={styles.miniBtn}
-                          onPress={() => onUpdateQty(item.id, item.quantity - 1)}
+                          onPress={() => onUpdateQty(item.id, Math.max(0, qty - 1))}
                         >
                           <Text style={styles.miniBtnText}>−</Text>
                         </TouchableOpacity>
 
-                        {/* Direct Numeric Input inside Cart */}
                         <TextInput
                           style={styles.miniQtyInput}
                           keyboardType="numeric"
                           selectTextOnFocus
-                          defaultValue={String(item.quantity)}
-                          onEndEditing={(e) => {
-                            const val = parseInt(e.nativeEvent.text, 10);
-                            if (!isNaN(val) && val >= 0) {
-                              onUpdateQty(item.id, val);
-                            }
+                          value={String(qty || "")}
+                          placeholder="0"
+                          onChangeText={(text) => {
+                            const clean = text.replace(/[^0-9]/g, "");
+                            const val = clean === "" ? 0 : parseInt(clean, 10);
+                            onUpdateQty(item.id, isNaN(val) ? 0 : val);
                           }}
                         />
 
                         <TouchableOpacity
                           style={[styles.miniBtn, styles.miniAddBtn]}
-                          onPress={() => onUpdateQty(item.id, item.quantity + 1)}
+                          onPress={() => onUpdateQty(item.id, qty + 1)}
                         >
                           <Text style={styles.miniAddBtnText}>+</Text>
                         </TouchableOpacity>
                       </View>
-                      <Text style={styles.lineTotal}>₹{lineTotal.toFixed(2)}</Text>
+
+                      <View style={styles.totalAndTrash}>
+                        <Text style={styles.lineTotal}>₹{lineTotal.toFixed(2)}</Text>
+                        <TouchableOpacity
+                          style={styles.trashBtn}
+                          onPress={() => onUpdateQty(item.id, 0)}
+                          title="Remove Item"
+                        >
+                          <Text style={styles.trashText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 );
@@ -146,10 +166,10 @@ export default function CartModal({
 
             {/* Order Notes */}
             <View style={styles.notesSection}>
-              <Text style={styles.notesLabel}>ORDER NOTES / SPECIAL INSTRUCTIONS</Text>
+              <Text style={styles.notesLabel}>ORDER NOTES / INSTRUCTIONS</Text>
               <TextInput
                 style={styles.notesInput}
-                placeholder="e.g. Urgent delivery by 1 PM, Cash on Delivery, etc."
+                placeholder="e.g. Deliver before 2 PM, Cash on Delivery, etc."
                 placeholderTextColor="#94a3b8"
                 value={notes}
                 onChangeText={setNotes}
@@ -200,8 +220,8 @@ export default function CartModal({
                   <Text style={styles.sendBtnIcon}>⚡</Text>
                   <Text style={styles.sendBtnText}>
                     {editingOrder
-                      ? `RE-SUBMIT REVISED ORDER (₹${totals.grand_total.toFixed(2)})`
-                      : `SEND ORDER TO DESKTOP (₹${totals.grand_total.toFixed(2)})`}
+                      ? `CONFIRM & RE-SUBMIT (₹${totals.grand_total.toFixed(2)})`
+                      : `CONFIRM & DISPATCH ORDER (₹${totals.grand_total.toFixed(2)})`}
                   </Text>
                 </>
               )}
@@ -237,7 +257,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f1f5f9"
   },
   sheetTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
     color: "#0f172a"
   },
@@ -266,6 +286,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#fde68a"
   },
+  revisingRow: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  revisingIcon: {
+    fontSize: 18,
+    marginRight: 8
+  },
+  revisingTextCol: {
+    flex: 1
+  },
   revisingBannerTitle: {
     fontSize: 12,
     fontWeight: "800",
@@ -274,7 +305,7 @@ const styles = StyleSheet.create({
   revisingBannerSub: {
     fontSize: 11,
     color: "#b45309",
-    marginTop: 2
+    marginTop: 1
   },
   scrollArea: {
     flex: 1
@@ -305,7 +336,7 @@ const styles = StyleSheet.create({
   },
   salesmanTag: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#2563eb"
   },
   shopName: {
@@ -399,19 +430,37 @@ const styles = StyleSheet.create({
     color: "#ffffff"
   },
   miniQtyInput: {
-    minWidth: 34,
+    minWidth: 40,
     height: 28,
     textAlign: "center",
     fontSize: 13,
     fontWeight: "800",
     color: "#0f172a",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#eff6ff",
     paddingHorizontal: 2
+  },
+  totalAndTrash: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
   },
   lineTotal: {
     fontSize: 12,
     fontWeight: "700",
     color: "#0f172a"
+  },
+  trashBtn: {
+    backgroundColor: "#fee2e2",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  trashText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#b91c1c"
   },
   notesSection: {
     marginBottom: 16
@@ -432,7 +481,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 13,
     color: "#0f172a",
-    minHeight: 50
+    minHeight: 46
   },
   totalsCard: {
     backgroundColor: "#ffffff",
@@ -517,7 +566,7 @@ const styles = StyleSheet.create({
   },
   sendBtnText: {
     color: "#ffffff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.3
   }

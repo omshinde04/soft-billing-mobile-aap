@@ -119,7 +119,6 @@ export default function App() {
     setIsOfflineMode(next);
     setSimulatedOfflineMode(next);
     if (!next) {
-      // Reconnected! Immediately flush any queued orders
       await triggerAutoSync();
     }
   };
@@ -144,12 +143,10 @@ export default function App() {
       setRetailers(data.retailers || []);
       setProducts(data.products || []);
 
-      // If no beat selected, use salesman's assigned beat or first available
       if (!currentBeat && data.beats?.length > 0) {
         setCurrentBeat(data.beats[0]);
       }
 
-      // If no retailer selected, pick the first retailer on beat
       if (!selectedRetailer && data.retailers?.length > 0) {
         const matching = data.retailers.find(r => !currentBeat || r.beat_name === currentBeat);
         setSelectedRetailer(matching || data.retailers[0]);
@@ -234,7 +231,7 @@ export default function App() {
     });
   };
 
-  // Direct Numeric Input Handler (e.g. typing 10 or 50)
+  // Real-time direct quantity update
   const handleUpdateQty = (productId, qty) => {
     const num = Number(qty);
     if (isNaN(num) || num <= 0) {
@@ -278,17 +275,10 @@ export default function App() {
     }
     setCartQuantities(newCart);
 
-    // 4. Mark editing state
+    // 4. Mark editing state & open cart review directly for fast adjustment
     setEditingOrder(order);
     setRecentModalVisible(false);
-
-    // Alert user that order has been loaded into cart
-    const msg = `Order #${order.order_number} loaded into cart! You can now adjust quantities, add/remove items, and re-submit.`;
-    if (Platform.OS === "web") {
-      alert(msg);
-    } else {
-      Alert.alert("Order Ready to Edit", msg);
-    }
+    setCartModalVisible(true);
   };
 
   const handleCancelEdit = () => {
@@ -329,7 +319,7 @@ export default function App() {
           quantity: cartQuantities[id]
         };
       })
-      .filter(Boolean);
+      .filter(item => item && item.quantity > 0);
   }, [cartQuantities, products]);
 
   const orderTotals = useMemo(() => {
@@ -337,7 +327,7 @@ export default function App() {
   }, [cartItems]);
 
   const totalCartCount = useMemo(() => {
-    return Object.values(cartQuantities).reduce((acc, q) => acc + q, 0);
+    return Object.values(cartQuantities).reduce((acc, q) => acc + (Number(q) || 0), 0);
   }, [cartQuantities]);
 
   // Submit order handler (handles both fresh and revised orders)
@@ -357,6 +347,8 @@ export default function App() {
         retailer_phone: selectedRetailer?.phone,
         retailer_address: selectedRetailer?.address,
         notes: finalNotes,
+        replaces_order_number: editingOrder ? editingOrder.order_number : null,
+        is_revision: !!editingOrder,
         subtotal_taxable: orderTotals.subtotal_taxable,
         total_cgst: orderTotals.total_cgst,
         total_sgst: orderTotals.total_sgst,
@@ -459,7 +451,7 @@ export default function App() {
                 ✏️ Revising Order #{editingOrder.order_number}
               </Text>
               <Text style={styles.editingBannerSub}>
-                {editingOrder.retailer_name} • Make changes & send
+                {editingOrder.retailer_name} • Make changes & re-dispatch
               </Text>
             </View>
             <TouchableOpacity

@@ -21,35 +21,37 @@ export function calculateOrderTotals(cartItems) {
   let total_cgst = 0;
   let total_sgst = 0;
 
-  const processedItems = cartItems.map(item => {
-    const rate = Number(item.selling_rate || item.rate || 0);
-    const qty = Number(item.quantity || 1);
-    const taxRate = Number(item.tax_rate || 0);
+  const processedItems = (cartItems || [])
+    .filter(item => Number(item.quantity || 0) > 0)
+    .map(item => {
+      const rate = Number(item.selling_rate || item.rate || 0);
+      const qty = Number(item.quantity || 1);
+      const taxRate = Number(item.tax_rate || 0);
 
-    const taxable = Math.round(rate * qty * 100) / 100;
-    const cgst = Math.round((taxable * (taxRate / 2) / 100) * 100) / 100;
-    const sgst = Math.round((taxable * (taxRate / 2) / 100) * 100) / 100;
-    const total = Math.round((taxable + cgst + sgst) * 100) / 100;
+      const taxable = Math.round(rate * qty * 100) / 100;
+      const cgst = Math.round((taxable * (taxRate / 2) / 100) * 100) / 100;
+      const sgst = Math.round((taxable * (taxRate / 2) / 100) * 100) / 100;
+      const total = Math.round((taxable + cgst + sgst) * 100) / 100;
 
-    subtotal_taxable += taxable;
-    total_cgst += cgst;
-    total_sgst += sgst;
+      subtotal_taxable += taxable;
+      total_cgst += cgst;
+      total_sgst += sgst;
 
-    return {
-      product_id: item.id || null,
-      item_name: item.name,
-      quantity: qty,
-      unit: item.unit || "PCS",
-      rate: rate,
-      tax_rate: taxRate,
-      taxable_amount: taxable,
-      cgst_amount: cgst,
-      sgst_amount: sgst,
-      igst_amount: 0,
-      total_amount: total,
-      mrp: Number(item.mrp || rate)
-    };
-  });
+      return {
+        product_id: item.id || null,
+        item_name: item.name,
+        quantity: qty,
+        unit: item.unit || "PCS",
+        rate: rate,
+        tax_rate: taxRate,
+        taxable_amount: taxable,
+        cgst_amount: cgst,
+        sgst_amount: sgst,
+        igst_amount: 0,
+        total_amount: total,
+        mrp: Number(item.mrp || rate)
+      };
+    });
 
   subtotal_taxable = Math.round(subtotal_taxable * 100) / 100;
   total_cgst = Math.round(total_cgst * 100) / 100;
@@ -73,6 +75,8 @@ export async function sendOrder(orderData) {
 
   const payload = {
     order_number: orderNumber,
+    replaces_order_number: orderData.replaces_order_number || null,
+    is_revision: !!orderData.replaces_order_number,
     order_date: dateStr,
     salesman_name: orderData.salesman_name || "Field Salesman",
     salesman_phone: orderData.salesman_phone || "",
@@ -122,7 +126,7 @@ export async function sendOrder(orderData) {
   // Record in local history
   await saveRecentOrder({
     ...payload,
-    status: dispatched ? "Dispatched" : "Queued Offline"
+    status: dispatched ? (payload.is_revision ? "Revised" : "Dispatched") : "Offline Queued"
   });
 
   return {
@@ -137,7 +141,6 @@ async function enqueueOfflineOrder(order) {
   try {
     const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
     const queue = raw ? JSON.parse(raw) : [];
-    // avoid duplicates
     if (!queue.some(o => o.order_number === order.order_number)) {
       queue.push(order);
     }
@@ -173,7 +176,6 @@ export async function flushOfflineQueue() {
         const orderDocRef = doc(db, "transient_orders", order.order_number);
         await setDoc(orderDocRef, order);
         flushedCount++;
-        // Update status in recent history
         await updateOrderStatusInRecent(order.order_number, "Dispatched");
       } catch (err) {
         console.warn("[OrderService] Could not flush order " + order.order_number, err.message);
@@ -202,7 +204,6 @@ async function saveRecentOrder(order) {
   try {
     const raw = await AsyncStorage.getItem(RECENT_ORDERS_KEY);
     const list = raw ? JSON.parse(raw) : [];
-    // remove existing if updating
     const filtered = list.filter(o => o.order_number !== order.order_number);
     filtered.unshift(order);
     const trimmed = filtered.slice(0, 50);
@@ -228,14 +229,20 @@ export async function markOrderAsRevised(originalOrderNumber, newOrderNumber) {
       const list = JSON.parse(raw);
       const updated = list.map(o => {
         if (o.order_number === originalOrderNumber) {
-          return { ...o, status: "Revised / Re-sent", is_edited: true, revised_to: newOrderNumber };
+          return {
+            ...o,
+            status: "Replaced",
+            is_replaced: true,
+            replaced_by: newOrderNumber,
+            notes: (o.notes ? o.notes + " " : "") + `[Replaced by #${newOrderNumber}]`
+          };
         }
         return o;
       });
       await AsyncStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(updated));
     }
 
-    // Also remove original order from offline queue if it hadn't synced yet
+    // Remove from offline queue if it had not synced yet
     const queueRaw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
     if (queueRaw) {
       const q = JSON.parse(queueRaw);

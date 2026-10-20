@@ -30,7 +30,7 @@ export default function RecentOrdersModal({
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Orders History</Text>
-              <Text style={styles.subtitle}>Recent orders recorded on this phone</Text>
+              <Text style={styles.subtitle}>Recent field orders recorded on this phone</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
@@ -41,7 +41,7 @@ export default function RecentOrdersModal({
           <View style={styles.syncBanner}>
             <View style={styles.syncTextCol}>
               <Text style={styles.syncBannerTitle}>Basement / Offline Sync</Text>
-              <Text style={styles.syncBannerSub}>Push queued offline orders to cloud</Text>
+              <Text style={styles.syncBannerSub}>Push queued offline orders to desktop</Text>
             </View>
             <TouchableOpacity
               style={styles.syncBtn}
@@ -62,51 +62,62 @@ export default function RecentOrdersModal({
             keyExtractor={(item, idx) => item.order_number || String(idx)}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => {
+              const isReplaced = item.is_replaced || item.status === "Replaced" || item.status === "Cancelled";
               const isOffline = item.status === "Offline Queued";
-              const isDispatched = item.status === "Dispatched";
-              const isRevised = item.status === "Revised / Re-sent";
+              const isRevised = item.is_revision || item.status === "Revised";
+              const isDispatched = item.status === "Dispatched" || isRevised;
 
               return (
-                <View style={styles.orderCard}>
+                <View style={[styles.orderCard, isReplaced && styles.orderCardReplaced]}>
                   <View style={styles.orderTop}>
                     <View style={styles.orderNumRow}>
-                      <Text style={styles.orderNum}>#{item.order_number}</Text>
-                      {item.is_edited && (
-                        <View style={styles.editedBadge}>
-                          <Text style={styles.editedBadgeText}>EDITED</Text>
+                      <Text style={[styles.orderNum, isReplaced && styles.orderNumStrikethrough]}>
+                        #{item.order_number}
+                      </Text>
+                      {item.replaces_order_number && (
+                        <View style={styles.revisionPill}>
+                          <Text style={styles.revisionPillText}>
+                            ✏️ Revised from #{item.replaces_order_number}
+                          </Text>
                         </View>
                       )}
                     </View>
+
+                    {/* Status Pill */}
                     <View
                       style={[
                         styles.statusPill,
-                        isDispatched
-                          ? styles.statusDispatched
+                        isReplaced
+                          ? styles.statusPillReplaced
                           : isOffline
                           ? styles.statusOffline
-                          : styles.statusRevised
+                          : styles.statusDispatched
                       ]}
                     >
                       <Text
                         style={[
                           styles.statusText,
-                          isDispatched
-                            ? styles.statusTextDispatched
+                          isReplaced
+                            ? styles.statusTextReplaced
                             : isOffline
                             ? styles.statusTextOffline
-                            : styles.statusTextRevised
+                            : styles.statusTextDispatched
                         ]}
                       >
-                        {item.status || "Dispatched"}
+                        {isReplaced
+                          ? `Replaced by #${item.replaced_by || "New"}`
+                          : item.status || "Dispatched"}
                       </Text>
                     </View>
                   </View>
 
-                  <Text style={styles.shopName}>{item.retailer_name}</Text>
+                  <Text style={[styles.shopName, isReplaced && styles.textMuted]}>
+                    {item.retailer_name}
+                  </Text>
 
                   <View style={styles.metaRow}>
                     <Text style={styles.metaText}>
-                      👤 {item.salesman_name} • 📍 {item.beat_name || "Market"}
+                      👤 {item.salesman_name} • 📍 {item.beat_name || "Market Beat"}
                     </Text>
                     {item.notes ? (
                       <Text style={styles.notesText} numberOfLines={1}>
@@ -120,7 +131,7 @@ export default function RecentOrdersModal({
                     <View style={styles.itemsPreview}>
                       {item.items.slice(0, 3).map((it, idx) => (
                         <Text key={idx} style={styles.previewLine} numberOfLines={1}>
-                          • {it.product_name || it.name} × {it.quantity}
+                          • {it.item_name || it.product_name || it.name} × {it.quantity}
                         </Text>
                       ))}
                       {item.items.length > 3 && (
@@ -136,13 +147,13 @@ export default function RecentOrdersModal({
                       <Text style={styles.itemCountText}>
                         {item.items?.length || 0} Products
                       </Text>
-                      <Text style={styles.grandTotalText}>
+                      <Text style={[styles.grandTotalText, isReplaced && styles.textMuted]}>
                         ₹{Number(item.grand_total || 0).toFixed(2)}
                       </Text>
                     </View>
 
-                    {/* Edit Order Action */}
-                    {onEditOrder && (
+                    {/* Edit Order Action (Only visible for active, non-superseded orders) */}
+                    {!isReplaced && onEditOrder ? (
                       <TouchableOpacity
                         style={styles.editBtn}
                         onPress={() => onEditOrder(item)}
@@ -150,7 +161,11 @@ export default function RecentOrdersModal({
                       >
                         <Text style={styles.editBtnText}>✏️ Edit & Re-send</Text>
                       </TouchableOpacity>
-                    )}
+                    ) : isReplaced ? (
+                      <View style={styles.supersededBadge}>
+                        <Text style={styles.supersededBadgeText}>✓ Superseded</Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               );
@@ -264,6 +279,11 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1
   },
+  orderCardReplaced: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+    opacity: 0.8
+  },
   orderTop: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -280,13 +300,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#2563eb"
   },
-  editedBadge: {
+  orderNumStrikethrough: {
+    color: "#64748b",
+    textDecorationLine: "line-through"
+  },
+  revisionPill: {
     backgroundColor: "#fef3c7",
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4
   },
-  editedBadgeText: {
+  revisionPillText: {
     fontSize: 9,
     fontWeight: "800",
     color: "#b45309"
@@ -302,8 +326,8 @@ const styles = StyleSheet.create({
   statusOffline: {
     backgroundColor: "#fef3c7"
   },
-  statusRevised: {
-    backgroundColor: "#f1f5f9"
+  statusPillReplaced: {
+    backgroundColor: "#fee2e2"
   },
   statusText: {
     fontSize: 10,
@@ -315,14 +339,17 @@ const styles = StyleSheet.create({
   statusTextOffline: {
     color: "#d97706"
   },
-  statusTextRevised: {
-    color: "#64748b"
+  statusTextReplaced: {
+    color: "#b91c1c"
   },
   shopName: {
     fontSize: 14,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 4
+  },
+  textMuted: {
+    color: "#94a3b8"
   },
   metaRow: {
     marginBottom: 6
@@ -382,6 +409,17 @@ const styles = StyleSheet.create({
     color: "#2563eb",
     fontSize: 12,
     fontWeight: "700"
+  },
+  supersededBadge: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  supersededBadgeText: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "600"
   },
   emptyView: {
     paddingVertical: 48,

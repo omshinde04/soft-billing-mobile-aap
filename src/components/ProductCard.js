@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 
 export default function ProductCard({
@@ -8,27 +8,31 @@ export default function ProductCard({
   onDecrement,
   onSetQuantity
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [tempQty, setTempQty] = useState(String(quantity));
+  const [inputText, setInputText] = useState(quantity > 0 ? String(quantity) : "");
+
+  // Keep local input in sync whenever parent quantity changes (e.g. from cart or edit order load)
+  useEffect(() => {
+    setInputText(quantity > 0 ? String(quantity) : "");
+  }, [quantity]);
 
   const rate = Number(product.selling_rate || product.rate || 0);
   const mrp = Number(product.mrp || rate);
   const marginPct = mrp > rate ? Math.round(((mrp - rate) / mrp) * 100) : 0;
   const taxRate = Number(product.tax_rate || 0);
 
-  const handleFinishEditing = () => {
-    setIsEditing(false);
-    const parsed = parseInt(tempQty, 10);
-    if (!isNaN(parsed) && parsed >= 0) {
-      if (onSetQuantity) onSetQuantity(product.id, parsed);
-    } else {
-      setTempQty(String(quantity));
+  const handleTextChange = (text) => {
+    setInputText(text);
+    const clean = text.replace(/[^0-9]/g, "");
+    const val = clean === "" ? 0 : parseInt(clean, 10);
+    if (!isNaN(val) && onSetQuantity) {
+      onSetQuantity(product.id, val);
     }
   };
 
   const handleQuickAdd = (amount) => {
     const current = Number(quantity || 0);
     const next = current + amount;
+    setInputText(String(next));
     if (onSetQuantity) {
       onSetQuantity(product.id, next);
     }
@@ -36,8 +40,9 @@ export default function ProductCard({
 
   return (
     <View style={[styles.card, quantity > 0 && styles.activeCard]}>
-      <View style={styles.topInfo}>
-        <View style={styles.nameBlock}>
+      {/* Top Details & Action Block */}
+      <View style={styles.topRow}>
+        <View style={styles.infoCol}>
           <Text style={styles.productName} numberOfLines={2}>
             {product.name}
           </Text>
@@ -50,110 +55,91 @@ export default function ProductCard({
             <View style={styles.taxBadge}>
               <Text style={styles.taxBadgeText}>{taxRate}% GST</Text>
             </View>
-            {product.unit ? (
-              <Text style={styles.unitText}>
-                {product.pack_size ? product.pack_size + " " : ""}{product.unit}
-              </Text>
-            ) : null}
+            <Text style={styles.unitText}>
+              {product.pack_size ? `${product.pack_size} ` : ""}{product.unit || "PCS"}
+            </Text>
           </View>
         </View>
 
-        {/* Stepper with Direct Numeric Input */}
-        <View style={styles.actionBlock}>
+        {/* Quantity Stepper & Direct Typing Input */}
+        <View style={styles.actionCol}>
           {quantity > 0 ? (
-            <View style={styles.stepperContainer}>
+            <View style={styles.stepperBox}>
               <TouchableOpacity
-                style={styles.stepperBtn}
+                style={styles.stepBtn}
                 onPress={onDecrement}
                 activeOpacity={0.7}
               >
-                <Text style={styles.stepperBtnText}>−</Text>
+                <Text style={styles.stepBtnText}>−</Text>
               </TouchableOpacity>
 
-              {/* Direct Numeric Input / Touch to Type */}
-              {isEditing ? (
-                <TextInput
-                  style={styles.qtyInput}
-                  keyboardType="numeric"
-                  autoFocus
-                  selectTextOnFocus
-                  value={tempQty}
-                  onChangeText={setTempQty}
-                  onBlur={handleFinishEditing}
-                  onSubmitEditing={handleFinishEditing}
-                />
-              ) : (
-                <TouchableOpacity
-                  style={styles.qtyBox}
-                  onPress={() => {
-                    setTempQty(String(quantity));
-                    setIsEditing(true);
-                  }}
-                  activeOpacity={0.7}
-                  title="Tap to type quantity directly"
-                >
-                  <Text style={styles.qtyText}>{quantity}</Text>
-                  <Text style={styles.qtyEditHint}>edit</Text>
-                </TouchableOpacity>
-              )}
+              <TextInput
+                style={styles.qtyInput}
+                keyboardType="numeric"
+                selectTextOnFocus
+                value={inputText}
+                onChangeText={handleTextChange}
+                placeholder="0"
+                placeholderTextColor="#94a3b8"
+              />
 
               <TouchableOpacity
-                style={[styles.stepperBtn, styles.stepperAddBtn]}
+                style={[styles.stepBtn, styles.stepAddBtn]}
                 onPress={onIncrement}
                 activeOpacity={0.7}
               >
-                <Text style={styles.stepperAddBtnText}>+</Text>
+                <Text style={styles.stepAddBtnText}>+</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity
-              style={styles.addButton}
+              style={styles.addBtn}
               onPress={onIncrement}
               activeOpacity={0.8}
             >
-              <Text style={styles.addButtonText}>+ ADD</Text>
+              <Text style={styles.addBtnText}>+ ADD</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Pricing row & Quick Multipliers */}
-      <View style={styles.pricingRow}>
-        <View style={styles.priceLeft}>
-          <Text style={styles.rateLabel}>Wholesale:</Text>
+      {/* Bottom Pricing Row & Quick Bulk Multipliers */}
+      <View style={styles.bottomRow}>
+        <View style={styles.priceBlock}>
+          <Text style={styles.rateLabel}>Rate:</Text>
           <Text style={styles.rateValue}>₹{rate.toFixed(2)}</Text>
           {mrp > rate && (
             <Text style={styles.mrpCrossed}>₹{mrp.toFixed(2)}</Text>
           )}
           {marginPct > 0 && (
-            <View style={styles.marginPill}>
-              <Text style={styles.marginPillText}>{marginPct}% Margin</Text>
+            <View style={styles.marginBadge}>
+              <Text style={styles.marginText}>{marginPct}% Margin</Text>
             </View>
           )}
         </View>
 
-        {/* Quick Multiplier Case Pills: +6, +12, +24 */}
-        <View style={styles.quickMultipliers}>
+        {/* Quick Multiplier Pills */}
+        <View style={styles.bulkRow}>
           <TouchableOpacity
-            style={styles.quickPill}
+            style={styles.bulkPill}
             onPress={() => handleQuickAdd(6)}
             activeOpacity={0.7}
           >
-            <Text style={styles.quickPillText}>+6</Text>
+            <Text style={styles.bulkText}>+6</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.quickPill}
+            style={styles.bulkPill}
             onPress={() => handleQuickAdd(12)}
             activeOpacity={0.7}
           >
-            <Text style={styles.quickPillText}>+12</Text>
+            <Text style={styles.bulkText}>+12</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.quickPill}
+            style={styles.bulkPill}
             onPress={() => handleQuickAdd(24)}
             activeOpacity={0.7}
           >
-            <Text style={styles.quickPillText}>+24</Text>
+            <Text style={styles.bulkText}>+24</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -179,13 +165,13 @@ const styles = StyleSheet.create({
     borderColor: "#3b82f6",
     backgroundColor: "#f8faff"
   },
-  topInfo: {
+  topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8
+    marginBottom: 10
   },
-  nameBlock: {
+  infoCol: {
     flex: 1,
     marginRight: 12
   },
@@ -204,7 +190,7 @@ const styles = StyleSheet.create({
   brandBadge: {
     backgroundColor: "#f1f5f9",
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 1.5,
     borderRadius: 4
   },
   brandBadgeText: {
@@ -215,7 +201,7 @@ const styles = StyleSheet.create({
   taxBadge: {
     backgroundColor: "#ecfdf5",
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 1.5,
     borderRadius: 4,
     borderWidth: 0.5,
     borderColor: "#a7f3d0"
@@ -229,21 +215,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#64748b"
   },
-  actionBlock: {
+  actionCol: {
     alignItems: "flex-end"
   },
-  addButton: {
+  addBtn: {
     backgroundColor: "#2563eb",
     paddingHorizontal: 16,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 8
   },
-  addButtonText: {
+  addBtnText: {
     color: "#ffffff",
     fontSize: 12,
-    fontWeight: "800"
+    fontWeight: "800",
+    letterSpacing: 0.5
   },
-  stepperContainer: {
+  stepperBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#ffffff",
@@ -252,45 +239,28 @@ const styles = StyleSheet.create({
     borderColor: "#cbd5e1",
     overflow: "hidden"
   },
-  stepperBtn: {
-    backgroundColor: "#f1f5f9",
+  stepBtn: {
+    backgroundColor: "#f8fafc",
     width: 32,
     height: 34,
     alignItems: "center",
     justifyContent: "center"
   },
-  stepperBtnText: {
+  stepBtnText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#475569"
   },
-  stepperAddBtn: {
+  stepAddBtn: {
     backgroundColor: "#2563eb"
   },
-  stepperAddBtnText: {
+  stepAddBtnText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#ffffff"
   },
-  qtyBox: {
-    minWidth: 42,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  qtyText: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#0f172a"
-  },
-  qtyEditHint: {
-    fontSize: 8,
-    color: "#3b82f6",
-    fontWeight: "700",
-    marginTop: -2
-  },
   qtyInput: {
-    minWidth: 42,
+    minWidth: 44,
     height: 34,
     paddingHorizontal: 4,
     textAlign: "center",
@@ -299,7 +269,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     backgroundColor: "#eff6ff"
   },
-  pricingRow: {
+  bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -307,7 +277,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#f1f5f9",
     paddingTop: 8
   },
-  priceLeft: {
+  priceBlock: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6
@@ -326,30 +296,30 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     textDecorationLine: "line-through"
   },
-  marginPill: {
+  marginBadge: {
     backgroundColor: "#eff6ff",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4
   },
-  marginPillText: {
+  marginText: {
     fontSize: 10,
     color: "#2563eb",
     fontWeight: "700"
   },
-  quickMultipliers: {
+  bulkRow: {
     flexDirection: "row",
     gap: 4
   },
-  quickPill: {
+  bulkPill: {
     backgroundColor: "#f1f5f9",
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#e2e8f0"
   },
-  quickPillText: {
+  bulkText: {
     fontSize: 11,
     fontWeight: "700",
     color: "#475569"
