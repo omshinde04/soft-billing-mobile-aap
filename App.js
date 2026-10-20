@@ -10,14 +10,19 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
-  Alert,
-  ActivityIndicator
+  Alert
 } from "react-native";
 import Header from "./src/components/Header";
 import LoginScreen from "./src/components/LoginScreen";
 import LaunchScreen from "./src/components/LaunchScreen";
+import BottomNavBar from "./src/components/BottomNavBar";
+import SideDrawer from "./src/components/SideDrawer";
 import RetailerSelector from "./src/components/RetailerSelector";
 import ProductCard from "./src/components/ProductCard";
+import StoresScreen from "./src/components/StoresScreen";
+import OrdersScreen from "./src/components/OrdersScreen";
+import SyncScreen from "./src/components/SyncScreen";
+import ProfileScreen from "./src/components/ProfileScreen";
 import CartModal from "./src/components/CartModal";
 import OrderSuccessModal from "./src/components/OrderSuccessModal";
 import RecentOrdersModal from "./src/components/RecentOrdersModal";
@@ -38,8 +43,14 @@ import {
 } from "./src/services/orderService";
 
 export default function App() {
+  // Navigation Tabs: 'catalog' | 'stores' | 'orders' | 'sync' | 'profile'
+  const [activeTab, setActiveTab] = useState("catalog");
+
   // Splash & Entry Screen State
   const [showSplash, setShowSplash] = useState(true);
+
+  // Side Drawer state
+  const [menuDrawerVisible, setMenuDrawerVisible] = useState(false);
 
   // Authentication & Session
   const [currentSalesman, setCurrentSalesman] = useState(null);
@@ -186,6 +197,7 @@ export default function App() {
       setCurrentSalesman(null);
       setCartQuantities({});
       setEditingOrder(null);
+      setActiveTab("catalog");
     };
 
     if (Platform.OS === "web") {
@@ -262,7 +274,6 @@ export default function App() {
   };
 
   const handleCloseCart = () => {
-    // Sweep away any zero-quantity items when modal closes
     setCartQuantities(prev => {
       const next = {};
       Object.keys(prev).forEach(k => {
@@ -275,7 +286,6 @@ export default function App() {
 
   // Edit Order Handler
   const handleEditOrder = (order) => {
-    // 1. Match retailer
     const matchedRetailer =
       retailers.find(r => String(r.id) === String(order.retailer_id)) ||
       retailers.find(r => r.shop_name === order.retailer_name);
@@ -283,12 +293,10 @@ export default function App() {
       setSelectedRetailer(matchedRetailer);
     }
 
-    // 2. Set beat
     if (order.beat_name) {
       setCurrentBeat(order.beat_name);
     }
 
-    // 3. Populate cart quantities
     const newCart = {};
     if (Array.isArray(order.items)) {
       order.items.forEach(it => {
@@ -299,10 +307,8 @@ export default function App() {
       });
     }
     setCartQuantities(newCart);
-
-    // 4. Mark editing state & open cart review directly for fast adjustment
     setEditingOrder(order);
-    setRecentModalVisible(false);
+    setActiveTab("catalog");
     setCartModalVisible(true);
   };
 
@@ -333,7 +339,7 @@ export default function App() {
     });
   }, [products, selectedCategory, searchQuery]);
 
-  // Cart items & totals calculation - preserves rows in cart during modal editing
+  // Cart items & totals calculation
   const cartItems = useMemo(() => {
     return Object.keys(cartQuantities)
       .map(id => {
@@ -369,7 +375,7 @@ export default function App() {
     return Object.values(cartQuantities).reduce((acc, q) => acc + (Number(q) || 0), 0);
   }, [cartQuantities]);
 
-  // Submit order handler (handles both fresh and revised orders)
+  // Submit order handler
   const handleSubmitOrder = async ({ notes }) => {
     setIsSubmitting(true);
     try {
@@ -395,21 +401,16 @@ export default function App() {
         items: orderTotals.items
       });
 
-      // If we were revising a previous order, mark the old one as revised
       if (editingOrder) {
         await markOrderAsRevised(editingOrder.order_number, result.orderNumber);
         setEditingOrder(null);
       }
 
-      // Clear cart
       setCartQuantities({});
       setCartModalVisible(false);
-
-      // Show success modal
       setOrderResult(result);
       setSuccessModalVisible(true);
 
-      // Refresh recent orders & queue
       await loadRecentOrdersList();
       await checkQueueCount();
     } catch (err) {
@@ -468,21 +469,18 @@ export default function App() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-        {/* Header with Salesman Profile, Beat Selector & Logout */}
+        {/* Clean, Uncluttered Top Header with Hamburger and Live Status */}
         <Header
-          salesmen={salesmen}
           currentSalesman={currentSalesman}
-          onSelectSalesman={setCurrentSalesman}
           beats={beats}
           currentBeat={currentBeat}
           onSelectBeat={handleSelectBeat}
-          onOpenRecent={() => setRecentModalVisible(true)}
-          onRefreshCatalog={loadCatalogData}
-          isRefreshing={isRefreshing}
           isOfflineMode={isOfflineMode}
           onToggleOfflineMode={handleToggleOfflineMode}
           offlineQueueCount={offlineQueueCount}
-          onLogout={handleLogout}
+          onOpenMenu={() => setMenuDrawerVisible(true)}
+          onRefreshCatalog={loadCatalogData}
+          isRefreshing={isRefreshing}
         />
 
         {/* Editing Order Notice Banner */}
@@ -505,145 +503,205 @@ export default function App() {
           </View>
         )}
 
-        {/* Offline Alert Banner */}
-        {offlineQueueCount > 0 && (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineBannerText}>
-              📦 {offlineQueueCount} {offlineQueueCount === 1 ? "order" : "orders"} stored in phone (Basement Mode)
-            </Text>
-            <TouchableOpacity
-              style={styles.syncNowBtn}
-              onPress={async () => {
-                setIsSyncingOffline(true);
-                const res = await flushOfflineQueue();
-                setIsSyncingOffline(false);
-                await checkQueueCount();
-                await loadRecentOrdersList();
-                if (res.flushed > 0) {
-                  alert("⚡ Sent " + res.flushed + " offline orders to Desktop!");
+        {/* Main Tab Screen Content */}
+        <View style={styles.tabContentContainer}>
+          {/* TAB 1: PRODUCT CATALOG & DIRECT ORDERING */}
+          {activeTab === "catalog" && (
+            <View style={styles.catalogTab}>
+              {/* Retailer Selector Card */}
+              <RetailerSelector
+                retailers={retailers}
+                selectedRetailer={selectedRetailer}
+                onSelectRetailer={setSelectedRetailer}
+                currentBeat={currentBeat}
+              />
+
+              {/* Search Bar */}
+              <View style={styles.searchContainer}>
+                <View style={styles.searchBox}>
+                  <Text style={styles.searchIcon}>🔍</Text>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search biscuits, soaps, spices, SKU..."
+                    placeholderTextColor={COLORS.textLight}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery("")}>
+                      <Text style={styles.clearSearchText}>✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* Category Pills */}
+              <View style={styles.categoryBar}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+                  {categories.map(cat => {
+                    const isSelected = selectedCategory === cat;
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[styles.categoryPill, isSelected && styles.activeCategoryPill]}
+                        onPress={() => setSelectedCategory(cat)}
+                      >
+                        <Text style={[styles.categoryText, isSelected && styles.activeCategoryText]}>
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Product List */}
+              <FlatList
+                data={filteredProducts}
+                keyExtractor={item => String(item.id)}
+                contentContainerStyle={[
+                  styles.listContainer,
+                  cartItems.length > 0 && { paddingBottom: 110 }
+                ]}
+                renderItem={({ item }) => (
+                  <ProductCard
+                    product={item}
+                    quantity={cartQuantities[item.id] || 0}
+                    onIncrement={() => handleIncrement(item.id)}
+                    onDecrement={() => handleDecrement(item.id)}
+                    onSetQuantity={handleUpdateQty}
+                  />
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyIcon}>🌾</Text>
+                    <Text style={styles.emptyTitle}>कोणतेही उत्पादन सापडले नाही</Text>
+                    <Text style={styles.emptySubtitle}>No matching products. Try another search or category.</Text>
+                  </View>
                 }
-              }}
-            >
-              <Text style={styles.syncNowBtnText}>SYNC NOW ⚡</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+                ListFooterComponent={
+                  <View style={styles.catalogFooter}>
+                    <View style={styles.footerBrandRow}>
+                      <Text style={styles.footerBrandName}>GaavBilling</Text>
+                      <Text style={styles.footerBrandDot}>•</Text>
+                      <Text style={styles.footerBrandMarathi}>गाव बिलिंग</Text>
+                    </View>
+                    <Text style={styles.footerDistrict}>
+                      सुलभ FMCG वितरण • Nashik District & Rural Network
+                    </Text>
+                    <View style={styles.footerDivider} />
+                    <Text style={styles.footerCredit}>
+                      Developed with pride by <Text style={styles.footerAuthor}>Om Vilas Shinde</Text>
+                    </Text>
+                  </View>
+                }
+              />
 
-        {/* Retailer Selector Bar */}
-        <RetailerSelector
-          retailers={retailers}
-          selectedRetailer={selectedRetailer}
-          onSelectRetailer={setSelectedRetailer}
-          currentBeat={currentBeat}
-        />
+              {/* Floating Bottom Cart Bar (Positioned above Instagram bottom nav) */}
+              {cartItems.length > 0 && (
+                <View style={styles.floatingCartBar}>
+                  <View style={styles.cartBarInfo}>
+                    <View style={styles.cartCountBadge}>
+                      <Text style={styles.cartCountText}>{totalCartCount}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.cartBarLabel}>
+                        {cartItems.length} {cartItems.length === 1 ? "Item" : "Items"} • Total
+                      </Text>
+                      <Text style={styles.cartBarTotal}>₹{orderTotals.grand_total.toFixed(2)}</Text>
+                    </View>
+                  </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBox}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search biscuits, soaps, spices, SKU..."
-              placeholderTextColor={COLORS.textLight}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Text style={styles.clearSearchText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+                  <TouchableOpacity
+                    style={styles.viewCartButton}
+                    onPress={() => setCartModalVisible(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.viewCartText}>
+                      {editingOrder ? "REVISION CHECKOUT ➔" : "ORDER SUMMARY ➔"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
 
-        {/* Category Pills */}
-        <View style={styles.categoryBar}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-            {categories.map(cat => {
-              const isSelected = selectedCategory === cat;
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.categoryPill, isSelected && styles.activeCategoryPill]}
-                  onPress={() => setSelectedCategory(cat)}
-                >
-                  <Text style={[styles.categoryText, isSelected && styles.activeCategoryText]}>
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Product Catalog List with Direct Quantity Input */}
-        <FlatList
-          data={filteredProducts}
-          keyExtractor={item => String(item.id)}
-          contentContainerStyle={[
-            styles.listContainer,
-            cartItems.length > 0 && { paddingBottom: 110 }
-          ]}
-          renderItem={({ item }) => (
-            <ProductCard
-              product={item}
-              quantity={cartQuantities[item.id] || 0}
-              onIncrement={() => handleIncrement(item.id)}
-              onDecrement={() => handleDecrement(item.id)}
-              onSetQuantity={handleUpdateQty}
+          {/* TAB 2: KIRANA STORES DIRECTORY */}
+          {activeTab === "stores" && (
+            <StoresScreen
+              retailers={retailers}
+              selectedRetailer={selectedRetailer}
+              onSelectRetailer={setSelectedRetailer}
+              currentBeat={currentBeat}
+              onStartOrder={() => setActiveTab("catalog")}
             />
           )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>🌾</Text>
-              <Text style={styles.emptyTitle}>कोणतेही उत्पादन सापडले नाही</Text>
-              <Text style={styles.emptySubtitle}>No matching products. Try another search or category.</Text>
-            </View>
-          }
-          ListFooterComponent={
-            <View style={styles.catalogFooter}>
-              <View style={styles.footerBrandRow}>
-                <Text style={styles.footerBrandName}>GaavBilling</Text>
-                <Text style={styles.footerBrandDot}>•</Text>
-                <Text style={styles.footerBrandMarathi}>गाव बिलिंग</Text>
-              </View>
-              <Text style={styles.footerDistrict}>
-                सुलभ FMCG वितरण • Nashik District & Rural Network
-              </Text>
-              <View style={styles.footerDivider} />
-              <Text style={styles.footerCredit}>
-                Developed with pride by <Text style={styles.footerAuthor}>Om Vilas Shinde</Text>
-              </Text>
-            </View>
-          }
+
+          {/* TAB 3: ORDERS HISTORY & REVISION */}
+          {activeTab === "orders" && (
+            <OrdersScreen
+              orders={recentOrders}
+              onEditOrder={handleEditOrder}
+              onSyncOffline={handleSyncOffline}
+              isSyncing={isSyncingOffline}
+              onStartNewOrder={() => setActiveTab("catalog")}
+            />
+          )}
+
+          {/* TAB 4: REAL-TIME CLOUD & OFFLINE SYNC */}
+          {activeTab === "sync" && (
+            <SyncScreen
+              isOfflineMode={isOfflineMode}
+              onToggleOfflineMode={handleToggleOfflineMode}
+              offlineQueueCount={offlineQueueCount}
+              onSyncOffline={handleSyncOffline}
+              isSyncing={isSyncingOffline}
+              orders={recentOrders}
+            />
+          )}
+
+          {/* TAB 5: SALESMAN PROFILE & PERFORMANCE */}
+          {activeTab === "profile" && (
+            <ProfileScreen
+              salesman={currentSalesman}
+              salesmen={salesmen}
+              onSelectSalesman={setCurrentSalesman}
+              beats={beats}
+              currentBeat={currentBeat}
+              onSelectBeat={handleSelectBeat}
+              orders={recentOrders}
+              onLogout={handleLogout}
+            />
+          )}
+        </View>
+
+        {/* Instagram-Style Bottom Navigation Bar */}
+        <BottomNavBar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          cartCount={totalCartCount}
+          pendingSyncCount={offlineQueueCount}
         />
 
-        {/* Floating Bottom Cart Bar */}
-        {cartItems.length > 0 && (
-          <View style={styles.floatingCartBar}>
-            <View style={styles.cartBarInfo}>
-              <View style={styles.cartCountBadge}>
-                <Text style={styles.cartCountText}>{totalCartCount}</Text>
-              </View>
-              <View>
-                <Text style={styles.cartBarLabel}>
-                  {cartItems.length} {cartItems.length === 1 ? "Item" : "Items"} • Total
-                </Text>
-                <Text style={styles.cartBarTotal}>₹{orderTotals.grand_total.toFixed(2)}</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.viewCartButton}
-              onPress={() => setCartModalVisible(true)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.viewCartText}>
-                {editingOrder ? "REVISION CHECKOUT ➔" : "ORDER SUMMARY ➔"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Slide-out Hamburger Menu Drawer */}
+        <SideDrawer
+          visible={menuDrawerVisible}
+          onClose={() => setMenuDrawerVisible(false)}
+          salesman={currentSalesman}
+          beats={beats}
+          currentBeat={currentBeat}
+          onSelectBeat={handleSelectBeat}
+          isOfflineMode={isOfflineMode}
+          onToggleOfflineMode={handleToggleOfflineMode}
+          offlineQueueCount={offlineQueueCount}
+          onSyncOffline={handleSyncOffline}
+          isSyncing={isSyncingOffline}
+          onLogout={handleLogout}
+          onNavigateTab={(tab) => {
+            setMenuDrawerVisible(false);
+            setActiveTab(tab);
+          }}
+        />
 
         {/* Review & Submit Cart Modal */}
         <CartModal
@@ -668,7 +726,7 @@ export default function App() {
           result={orderResult}
         />
 
-        {/* Recent Orders Modal with Edit & Re-send Action */}
+        {/* Recent Orders Modal (kept for backward compatibility or quick view) */}
         <RecentOrdersModal
           visible={recentModalVisible}
           onClose={() => setRecentModalVisible(false)}
@@ -699,6 +757,13 @@ const styles = StyleSheet.create({
       boxShadow: "0 20px 35px -5px rgba(0, 20, 10, 0.45), 0 8px 16px -6px rgba(0, 0, 0, 0.3)",
       overflow: "hidden"
     } : {})
+  },
+  tabContentContainer: {
+    flex: 1
+  },
+  catalogTab: {
+    flex: 1,
+    position: "relative"
   },
   editingBanner: {
     backgroundColor: COLORS.accentLight,
@@ -736,34 +801,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#B91C1C",
     fontWeight: "700"
-  },
-  offlineBanner: {
-    backgroundColor: COLORS.warningBg,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#FDE68A"
-  },
-  offlineBannerText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#92400E",
-    flex: 1,
-    marginRight: 8
-  },
-  syncNowBtn: {
-    backgroundColor: COLORS.accentAmber,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6
-  },
-  syncNowBtnText: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "900"
   },
   searchContainer: {
     paddingHorizontal: 16,
@@ -901,22 +938,22 @@ const styles = StyleSheet.create({
   },
   floatingCartBar: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 12,
+    left: 14,
+    right: 14,
     backgroundColor: COLORS.primary,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 12
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 14,
+    zIndex: 90
   },
   cartBarInfo: {
     flexDirection: "row",
@@ -924,16 +961,16 @@ const styles = StyleSheet.create({
   },
   cartCountBadge: {
     backgroundColor: COLORS.accentGold,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10
   },
   cartCountText: {
     color: COLORS.primaryDark,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "900"
   },
   cartBarLabel: {
@@ -942,24 +979,24 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   cartBarTotal: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "900",
     color: "#ffffff"
   },
   viewCartButton: {
     backgroundColor: COLORS.accentGold,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
     shadowColor: COLORS.accentGold,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3
   },
   viewCartText: {
     color: COLORS.primaryDark,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "900",
     letterSpacing: 0.5
   }
