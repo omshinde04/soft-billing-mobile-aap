@@ -4,8 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  ScrollView
+  TouchableOpacity
 } from "react-native";
 import {
   ClipboardList,
@@ -13,11 +12,10 @@ import {
   Clock,
   Edit3,
   RefreshCw,
-  ShoppingBag,
-  Store,
-  ChevronRight
+  MessageSquare
 } from "lucide-react";
 import { COLORS } from "../theme/colors";
+import { openWhatsAppReceipt } from "../services/whatsappService";
 
 export default function OrdersScreen({
   orders = [],
@@ -26,7 +24,7 @@ export default function OrdersScreen({
   isSyncing = false,
   onStartNewOrder
 }) {
-  const [filter, setFilter] = useState("all"); // 'all' | 'synced' | 'pending'
+  const [filter, setFilter] = useState("all");
   const [expandedOrder, setExpandedOrder] = useState(null);
 
   const filteredOrders = orders.filter((o) => {
@@ -189,14 +187,27 @@ export default function OrdersScreen({
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.editBtn}
-                  onPress={() => onEditOrder(item)}
-                  activeOpacity={0.8}
-                >
-                  <Edit3 size={13} color={COLORS.primary} />
-                  <Text style={styles.editBtnText}>Edit / Revise</Text>
-                </TouchableOpacity>
+                <View style={styles.footerActionsRight}>
+                  {/* WhatsApp Receipt Share Button */}
+                  <TouchableOpacity
+                    style={styles.whatsAppOrderBtn}
+                    onPress={() => openWhatsAppReceipt(item.retailer_phone, item)}
+                    activeOpacity={0.8}
+                  >
+                    <MessageSquare size={13} color="#15803D" />
+                    <Text style={styles.whatsAppOrderText}>WhatsApp</Text>
+                  </TouchableOpacity>
+
+                  {/* Edit / Revise Button */}
+                  <TouchableOpacity
+                    style={styles.editBtn}
+                    onPress={() => onEditOrder(item)}
+                    activeOpacity={0.8}
+                  >
+                    <Edit3 size={13} color={COLORS.primary} />
+                    <Text style={styles.editBtnText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           );
@@ -451,12 +462,33 @@ const styles = StyleSheet.create({
     color: COLORS.primaryLight,
     fontWeight: "700"
   },
+  footerActionsRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  whatsAppOrderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#86EFAC"
+  },
+  whatsAppOrderText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#15803D"
+  },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     backgroundColor: COLORS.primaryWash,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 6,
     borderWidth: 1,

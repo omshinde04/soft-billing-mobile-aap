@@ -1,6 +1,8 @@
 import React from "react";
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from "react-native";
+import { Check, MessageSquare, Plus } from "lucide-react";
 import { COLORS } from "../theme/colors";
+import { openWhatsAppReceipt } from "../services/whatsappService";
 
 export default function OrderSuccessModal({
   visible,
@@ -8,6 +10,15 @@ export default function OrderSuccessModal({
   result
 }) {
   if (!result) return null;
+
+  const phone = result.payload?.retailer_phone;
+  const retailerName = result.payload?.retailer_name || "Kirana Store";
+  const grandTotal = Number(result.payload?.grand_total || 0).toFixed(2);
+  const itemCount = result.payload?.items?.length || 0;
+
+  const handleSendWhatsApp = () => {
+    openWhatsAppReceipt(phone, result);
+  };
 
   return (
     <Modal
@@ -20,17 +31,17 @@ export default function OrderSuccessModal({
         <View style={styles.card}>
           {/* Animated check circle */}
           <View style={[styles.iconCircle, result.isOffline && styles.iconCircleOffline]}>
-            <Text style={styles.iconText}>{result.isOffline ? "💾" : "✓"}</Text>
+            <Check size={32} color="#ffffff" strokeWidth={3} />
           </View>
 
           <Text style={styles.title}>
-            {result.isOffline ? "Order Saved Offline!" : "Order Dispatched!"}
+            {result.isOffline ? "Order Saved in Phone!" : "Order Dispatched!"}
           </Text>
 
           <Text style={styles.subtitle}>
             {result.isOffline
-              ? "No internet in market. Saved locally and will automatically send once connected."
-              : "Order delivered to Desktop Master SQLite and erased from cloud."}
+              ? "Saved in phone offline queue. Will auto-sync to Desktop when network returns."
+              : "Dispatched in real-time to Desktop Master Billing SQLite."}
           </Text>
 
           {/* Details Box */}
@@ -40,22 +51,42 @@ export default function OrderSuccessModal({
               <Text style={styles.valueHighlight}>#{result.orderNumber}</Text>
             </View>
             <View style={styles.row}>
-              <Text style={styles.label}>Store</Text>
-              <Text style={styles.value}>{result.payload?.retailer_name}</Text>
+              <Text style={styles.label}>Kirana Store</Text>
+              <Text style={styles.value} numberOfLines={1}>{retailerName}</Text>
             </View>
             <View style={styles.row}>
-              <Text style={styles.label}>Items</Text>
-              <Text style={styles.value}>{result.payload?.items?.length} products</Text>
+              <Text style={styles.label}>Items Booked</Text>
+              <Text style={styles.value}>{itemCount} {itemCount === 1 ? "Product" : "Products"}</Text>
             </View>
             <View style={[styles.row, styles.totalRow]}>
               <Text style={styles.totalLabel}>Grand Total</Text>
-              <Text style={styles.totalValue}>₹{Number(result.payload?.grand_total || 0).toFixed(2)}</Text>
+              <Text style={styles.totalValue}>₹{grandTotal}</Text>
             </View>
           </View>
 
-          {/* Action button */}
-          <TouchableOpacity style={styles.actionBtn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={styles.actionBtnText}>+ BOOK ANOTHER ORDER</Text>
+          {/* Action 1: WhatsApp Receipt Button */}
+          {phone ? (
+            <TouchableOpacity
+              style={styles.whatsAppBtn}
+              onPress={handleSendWhatsApp}
+              activeOpacity={0.85}
+            >
+              <MessageSquare size={18} color="#ffffff" />
+              <View style={styles.whatsAppTextContainer}>
+                <Text style={styles.whatsAppBtnText}>WHATSAPP RECEIPT</Text>
+                <Text style={styles.whatsAppSubText}>पावती पाठवा • {phone}</Text>
+              </View>
+            </TouchableOpacity>
+          ) : null}
+
+          {/* Action 2: Next Order */}
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={onClose}
+            activeOpacity={0.85}
+          >
+            <Plus size={16} color={COLORS.primary} />
+            <Text style={styles.actionBtnText}>BOOK NEXT ORDER</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -66,7 +97,7 @@ export default function OrderSuccessModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(11, 37, 24, 0.7)",
+    backgroundColor: "rgba(11, 37, 24, 0.75)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24
@@ -87,34 +118,29 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border
   },
   iconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16
+    marginBottom: 14
   },
   iconCircleOffline: {
     backgroundColor: COLORS.accentGold
   },
-  iconText: {
-    fontSize: 32,
-    color: "#ffffff",
-    fontWeight: "bold"
-  },
   title: {
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "900",
     color: COLORS.primary,
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: "center"
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 17,
     marginBottom: 16
   },
   detailsBox: {
@@ -122,7 +148,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     width: "100%",
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: COLORS.border
   },
@@ -130,7 +156,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8
+    marginBottom: 6
   },
   label: {
     fontSize: 12,
@@ -138,13 +164,13 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.textDark
   },
   valueHighlight: {
     fontSize: 13,
-    fontWeight: "800",
-    color: COLORS.primaryLight
+    fontWeight: "900",
+    color: COLORS.primary
   },
   totalRow: {
     borderTopWidth: 1,
@@ -155,29 +181,60 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
     color: COLORS.primary
   },
   totalValue: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "900",
     color: COLORS.primary
   },
-  actionBtn: {
-    backgroundColor: COLORS.primary,
+  whatsAppBtn: {
+    backgroundColor: "#16A34A",
     width: "100%",
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 10,
+    shadowColor: "#16A34A",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 3
   },
-  actionBtnText: {
+  whatsAppTextContainer: {
+    alignItems: "flex-start"
+  },
+  whatsAppBtnText: {
     color: "#ffffff",
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.5
+  },
+  whatsAppSubText: {
+    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 10,
+    fontWeight: "600"
+  },
+  actionBtn: {
+    backgroundColor: COLORS.primaryWash,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    width: "100%",
+    paddingVertical: 12,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6
+  },
+  actionBtnText: {
+    color: COLORS.primary,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5
   }

@@ -5,9 +5,10 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  TouchableOpacity
+  TouchableOpacity,
+  Linking
 } from "react-native";
-import { Store, Phone, MapPin, CheckCircle, AlertTriangle, ArrowRight, Search } from "lucide-react";
+import { Store, Phone, MapPin, CheckCircle, AlertTriangle, Search, MessageSquare } from "lucide-react";
 import { COLORS } from "../theme/colors";
 
 export default function StoresScreen({
@@ -102,9 +103,25 @@ export default function StoresScreen({
                 </View>
 
                 {item.phone && (
-                  <View style={styles.detailItem}>
-                    <Phone size={13} color={COLORS.textLight} />
-                    <Text style={styles.detailText}>{item.phone}</Text>
+                  <View style={styles.detailRight}>
+                    <View style={styles.detailItem}>
+                      <Phone size={12} color={COLORS.textLight} />
+                      <Text style={styles.detailText}>{item.phone}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.whatsAppStorePill}
+                      onPress={() => {
+                        const clean = String(item.phone).replace(/[^0-9]/g, "");
+                        const formatted = clean.length === 10 ? `91${clean}` : clean;
+                        const msg = encodeURIComponent(`नमस्ते ${item.owner_name || item.shop_name}, मी गाव बिलिंग (GaavBilling) प्रतिनिधी संपर्क साधत आहे.`);
+                        Linking.openURL(`https://wa.me/${formatted}?text=${msg}`);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <MessageSquare size={11} color="#15803D" />
+                      <Text style={styles.whatsAppStoreText}>WhatsApp</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -278,9 +295,30 @@ const styles = StyleSheet.create({
     gap: 4,
     flex: 1
   },
+  detailRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
   detailText: {
     fontSize: 11,
     color: COLORS.textMuted
+  },
+  whatsAppStorePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#86EFAC"
+  },
+  whatsAppStoreText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#15803D"
   },
   cardActions: {
     marginTop: 2
