@@ -10,7 +10,10 @@ export default function Header({
   onSelectBeat,
   onOpenRecent,
   onRefreshCatalog,
-  isRefreshing
+  isRefreshing,
+  isOfflineMode,
+  onToggleOfflineMode,
+  offlineQueueCount = 0
 }) {
   return (
     <View style={styles.headerContainer}>
@@ -29,18 +32,37 @@ export default function Header({
         </View>
 
         <View style={styles.actionButtons}>
+          {/* Network Simulator Toggle */}
+          <TouchableOpacity
+            style={[styles.modeButton, isOfflineMode ? styles.modeOffline : styles.modeOnline]}
+            onPress={onToggleOfflineMode}
+            activeOpacity={0.7}
+            title={isOfflineMode ? "Switch to Online Mode" : "Simulate Basement Offline Mode"}
+          >
+            <Text style={[styles.modeButtonText, isOfflineMode ? styles.modeOfflineText : styles.modeOnlineText]}>
+              {isOfflineMode ? "📵 Basement" : "🟢 Online"}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.iconButton}
             onPress={onRefreshCatalog}
             disabled={isRefreshing}
+            title="Refresh Catalog from Desktop"
           >
             <Text style={styles.iconButtonText}>{isRefreshing ? "⏳" : "🔄"}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconButton, styles.historyButton]}
             onPress={onOpenRecent}
+            title="Orders History"
           >
             <Text style={styles.iconButtonText}>📋</Text>
+            {offlineQueueCount > 0 && (
+              <View style={styles.badgeCount}>
+                <Text style={styles.badgeCountText}>{offlineQueueCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -145,23 +167,65 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: "row",
-    gap: 8
+    alignItems: "center",
+    gap: 6
+  },
+  modeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1
+  },
+  modeOnline: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "rgba(16, 185, 129, 0.4)"
+  },
+  modeOffline: {
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    borderColor: "rgba(245, 158, 11, 0.6)"
+  },
+  modeButtonText: {
+    fontSize: 11,
+    fontWeight: "800"
+  },
+  modeOnlineText: {
+    color: "#34d399"
+  },
+  modeOfflineText: {
+    color: "#fbbf24"
   },
   iconButton: {
     backgroundColor: "#1e293b",
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#334155"
+    borderColor: "#334155",
+    position: "relative"
   },
   historyButton: {
     backgroundColor: "#1e293b"
   },
   iconButtonText: {
-    fontSize: 16
+    fontSize: 15
+  },
+  badgeCount: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#ef4444",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  badgeCountText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "900"
   },
   filterRow: {
     flexDirection: "row",

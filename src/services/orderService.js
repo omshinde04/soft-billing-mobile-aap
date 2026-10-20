@@ -5,6 +5,17 @@ import { db } from "../config/firebase.js";
 const RECENT_ORDERS_KEY = "@soft_billing_recent_orders";
 const OFFLINE_QUEUE_KEY = "@soft_billing_offline_queue";
 
+let simulationOffline = false;
+
+export function setSimulatedOfflineMode(val) {
+  simulationOffline = !!val;
+  console.log("[OrderService] Simulated offline mode set to:", simulationOffline);
+}
+
+export function isSimulatedOffline() {
+  return simulationOffline;
+}
+
 export function calculateOrderTotals(cartItems) {
   let subtotal_taxable = 0;
   let total_cgst = 0;
@@ -82,19 +93,33 @@ export async function sendOrder(orderData) {
 
   let dispatched = false;
 
-  try {
-    // Attempt write to Firestore transient queue
-    const orderDocRef = doc(db, "transient_orders", orderNumber);
-    await setDoc(orderDocRef, payload);
-    dispatched = true;
-    console.log("[OrderService] Order", orderNumber, "written to transient_orders");
-  } catch (err) {
-    console.warn("[OrderService] Cloud dispatch failed (offline mode):", err.message);
-    // Queue locally
+  // Check if simulated offline or real offline
+  if (simulationOffline) {
+    console.log("[OrderService] Offline Mode active: saving order directly to local storage.");
     await enqueueOfflineOrder(payload);
+  } else {
+    try {
+      // 2.5s timeout promise race in case network hangs in low reception
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Network timeout (Basement mode)")), 2500)
+      );
+
+      const orderDocRef = doc(db, "transient_orders", orderNumber);
+      await Promise.race([
+        setDoc(orderDocRef, payload),
+        timeoutPromise
+      ]);
+
+      dispatched = true;
+      console.log("[OrderService] Order", orderNumber, "written to transient_orders");
+    } catch (err) {
+      console.warn("[OrderService] Cloud dispatch failed (offline mode):", err.message);
+      // Queue locally in phone storage
+      await enqueueOfflineOrder(payload);
+    }
   }
 
-  // Record in local history for salesman reference
+  // Record in local history
   await saveRecentOrder({
     ...payload,
     status: dispatched ? "Dispatched" : "Queued Offline"
@@ -112,19 +137,33 @@ async function enqueueOfflineOrder(order) {
   try {
     const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
     const queue = raw ? JSON.parse(raw) : [];
-    queue.push(order);
+    // avoid duplicates
+    if (!queue.some(o => o.order_number === order.order_number)) {
+      queue.push(order);
+    }
     await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
   } catch (e) {
     console.error("Failed to queue offline order", e);
   }
 }
 
+export async function getOfflineQueueCount() {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    if (!raw) return 0;
+    const queue = JSON.parse(raw);
+    return Array.isArray(queue) ? queue.length : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
 export async function flushOfflineQueue() {
   try {
     const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
-    if (!raw) return { flushed: 0 };
+    if (!raw) return { flushed: 0, remaining: 0 };
     const queue = JSON.parse(raw);
-    if (!Array.isArray(queue) || queue.length === 0) return { flushed: 0 };
+    if (!Array.isArray(queue) || queue.length === 0) return { flushed: 0, remaining: 0 };
 
     const remaining = [];
     let flushedCount = 0;
@@ -134,7 +173,10 @@ export async function flushOfflineQueue() {
         const orderDocRef = doc(db, "transient_orders", order.order_number);
         await setDoc(orderDocRef, order);
         flushedCount++;
+        // Update status in recent history
+        await updateOrderStatusInRecent(order.order_number, "Dispatched");
       } catch (err) {
+        console.warn("[OrderService] Could not flush order " + order.order_number, err.message);
         remaining.push(order);
       }
     }
@@ -142,17 +184,28 @@ export async function flushOfflineQueue() {
     await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
     return { flushed: flushedCount, remaining: remaining.length };
   } catch (e) {
-    return { flushed: 0, error: e.message };
+    return { flushed: 0, remaining: 0, error: e.message };
   }
+}
+
+async function updateOrderStatusInRecent(orderNumber, newStatus) {
+  try {
+    const raw = await AsyncStorage.getItem(RECENT_ORDERS_KEY);
+    if (!raw) return;
+    const list = JSON.parse(raw);
+    const updated = list.map(o => o.order_number === orderNumber ? { ...o, status: newStatus } : o);
+    await AsyncStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(updated));
+  } catch (e) {}
 }
 
 async function saveRecentOrder(order) {
   try {
     const raw = await AsyncStorage.getItem(RECENT_ORDERS_KEY);
     const list = raw ? JSON.parse(raw) : [];
-    list.unshift(order);
-    // keep last 50 orders
-    const trimmed = list.slice(0, 50);
+    // remove existing if updating
+    const filtered = list.filter(o => o.order_number !== order.order_number);
+    filtered.unshift(order);
+    const trimmed = filtered.slice(0, 50);
     await AsyncStorage.setItem(RECENT_ORDERS_KEY, JSON.stringify(trimmed));
   } catch (e) {
     console.error("Failed saving recent order", e);

@@ -23,7 +23,9 @@ import {
   calculateOrderTotals,
   sendOrder,
   flushOfflineQueue,
-  getRecentOrders
+  getRecentOrders,
+  setSimulatedOfflineMode,
+  getOfflineQueueCount
 } from "./src/services/orderService";
 
 export default function App() {
@@ -54,12 +56,53 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingOffline, setIsSyncingOffline] = useState(false);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
 
   // Initial load
   useEffect(() => {
     loadCatalogData();
     loadRecentOrdersList();
+    checkQueueCount();
   }, []);
+
+  const checkQueueCount = async () => {
+    const count = await getOfflineQueueCount();
+    setOfflineQueueCount(count);
+  };
+
+  const triggerAutoSync = async () => {
+    const count = await getOfflineQueueCount();
+    if (count > 0) {
+      const res = await flushOfflineQueue();
+      if (res.flushed > 0) {
+        await loadRecentOrdersList();
+        await checkQueueCount();
+      }
+    } else {
+      setOfflineQueueCount(0);
+    }
+  };
+
+  const handleToggleOfflineMode = async () => {
+    const next = !isOfflineMode;
+    setIsOfflineMode(next);
+    setSimulatedOfflineMode(next);
+    if (!next) {
+      // Reconnected! Immediately beam queued orders
+      await triggerAutoSync();
+    }
+  };
+
+  useEffect(() => {
+    checkQueueCount();
+    const interval = setInterval(() => {
+      if (!isOfflineMode) {
+        triggerAutoSync();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [isOfflineMode]);
 
   const loadCatalogData = async () => {
     setIsRefreshing(true);
@@ -209,8 +252,9 @@ export default function App() {
       setOrderResult(result);
       setSuccessModalVisible(true);
 
-      // Refresh recent orders
+      // Refresh recent orders & queue
       loadRecentOrdersList();
+      checkQueueCount();
     } catch (err) {
       alert("Failed submitting order: " + err.message);
     } finally {
@@ -247,7 +291,34 @@ export default function App() {
         onOpenRecent={() => setRecentModalVisible(true)}
         onRefreshCatalog={loadCatalogData}
         isRefreshing={isRefreshing}
+        isOfflineMode={isOfflineMode}
+        onToggleOfflineMode={handleToggleOfflineMode}
+        offlineQueueCount={offlineQueueCount}
       />
+
+      {/* Offline Alert Banner */}
+      {offlineQueueCount > 0 && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineBannerText}>
+            📦 {offlineQueueCount} {offlineQueueCount === 1 ? "order" : "orders"} stored in phone (Basement Mode)
+          </Text>
+          <TouchableOpacity
+            style={styles.syncNowBtn}
+            onPress={async () => {
+              setIsSyncingOffline(true);
+              const res = await flushOfflineQueue();
+              setIsSyncingOffline(false);
+              await checkQueueCount();
+              await loadRecentOrdersList();
+              if (res.flushed > 0) {
+                alert("⚡ Sent " + res.flushed + " offline orders to Desktop!");
+              }
+            }}
+          >
+            <Text style={styles.syncNowBtnText}>SYNC NOW ⚡</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Retailer Selector Bar */}
       <RetailerSelector
@@ -397,6 +468,34 @@ const styles = StyleSheet.create({
       boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)",
       overflow: "hidden"
     } : {})
+  },
+  offlineBanner: {
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#fde68a"
+  },
+  offlineBannerText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#92400e",
+    flex: 1,
+    marginRight: 8
+  },
+  syncNowBtn: {
+    backgroundColor: "#d97706",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6
+  },
+  syncNowBtnText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "900"
   },
   searchContainer: {
     paddingHorizontal: 16,
