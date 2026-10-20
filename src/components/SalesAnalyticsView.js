@@ -1,20 +1,18 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import {
   TrendingUp,
-  Target,
   ShoppingBag,
   Store,
   Award,
   BarChart3,
   Clock,
-  MapPin,
-  CheckCircle2
+  MapPin
 } from "lucide-react";
 import { COLORS } from "../theme/colors";
 
 export default function SalesAnalyticsView({ orders = [] }) {
-  // 1. Core Analytics Calculations
+  // Core Analytics Calculations (No artificial daily target limits)
   const analytics = useMemo(() => {
     let totalSales = 0;
     const productMap = {};
@@ -79,16 +77,12 @@ export default function SalesAnalyticsView({ orders = [] }) {
 
     const totalOrdersCount = orders.length;
     const avgOrderValue = totalOrdersCount > 0 ? totalSales / totalOrdersCount : 0;
-    const dailyTarget = 10000; // Standard FMCG daily target of ₹10,000
-    const targetPercent = Math.min(Math.round((totalSales / dailyTarget) * 100), 100);
 
     return {
       totalSales,
       totalOrdersCount,
       uniqueStoresCount: storeSet.size,
       avgOrderValue,
-      dailyTarget,
-      targetPercent,
       topProducts,
       beatMap,
       timeBuckets
@@ -105,46 +99,23 @@ export default function SalesAnalyticsView({ orders = [] }) {
 
   return (
     <View style={styles.container}>
-      {/* 1. Daily Sales Target Progress Card */}
-      <View style={styles.targetCard}>
-        <View style={styles.targetTop}>
-          <View style={styles.targetIconBox}>
-            <Target size={20} color={COLORS.accentGold} />
-          </View>
-          <View style={styles.targetTitles}>
-            <Text style={styles.targetTitle}>आजचे विक्री उद्दिष्ट (Daily Target)</Text>
-            <Text style={styles.targetGoalText}>
-              Goal: ₹{analytics.dailyTarget.toLocaleString("en-IN")}
-            </Text>
-          </View>
-          <View style={styles.targetBadge}>
-            <Text style={styles.targetBadgeText}>{analytics.targetPercent}%</Text>
-          </View>
-        </View>
-
-        {/* Visual Progress Bar */}
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              { width: `${Math.max(analytics.targetPercent, 4)}%` }
-            ]}
-          />
-        </View>
-
-        <View style={styles.targetFooter}>
-          <Text style={styles.targetAchieved}>
-            साध्य: ₹{analytics.totalSales.toFixed(0)}
+      {/* 1. Today's Performance Hero Banner */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroLeft}>
+          <Text style={styles.heroLabel}>आजचे एकूण बुकिंग (Today's Total Sales)</Text>
+          <Text style={styles.heroValue}>
+            ₹{analytics.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
-          <Text style={styles.targetRemaining}>
-            {analytics.totalSales >= analytics.dailyTarget
-              ? "🎉 टार्गेट पूर्ण झाले!"
-              : `🎯 बाकी: ₹${(analytics.dailyTarget - analytics.totalSales).toFixed(0)}`}
+          <Text style={styles.heroSub}>
+            {analytics.totalOrdersCount} {analytics.totalOrdersCount === 1 ? "Order" : "Orders"} Placed • {analytics.uniqueStoresCount} Stores Covered
           </Text>
+        </View>
+        <View style={styles.heroIconBox}>
+          <TrendingUp size={26} color="#ffffff" />
         </View>
       </View>
 
-      {/* 2. 4 Big KPI Metric Tiles */}
+      {/* 2. 4 Clean KPI Metric Tiles */}
       <View style={styles.kpiGrid}>
         <View style={styles.kpiTile}>
           <View style={styles.kpiTileHeader}>
@@ -175,15 +146,15 @@ export default function SalesAnalyticsView({ orders = [] }) {
 
         <View style={styles.kpiTile}>
           <View style={styles.kpiTileHeader}>
-            <Text style={styles.kpiTileLabel}>सरासरी (Avg Order)</Text>
+            <Text style={styles.kpiTileLabel}>सरासरी (Avg Basket)</Text>
             <Award size={14} color={COLORS.primaryLight} />
           </View>
           <Text style={styles.kpiTileValue}>₹{analytics.avgOrderValue.toFixed(0)}</Text>
-          <Text style={styles.kpiTileSub}>Per Store Basket</Text>
+          <Text style={styles.kpiTileSub}>Per Store Booking</Text>
         </View>
       </View>
 
-      {/* 3. Top-Selling Products (Visual Ranked Horizontal Bar Chart) */}
+      {/* 3. Top-Selling Products (Ranked Horizontal Bar Chart) */}
       <View style={styles.chartCard}>
         <View style={styles.cardHeader}>
           <BarChart3 size={16} color={COLORS.primary} />
@@ -245,7 +216,7 @@ export default function SalesAnalyticsView({ orders = [] }) {
         )}
       </View>
 
-      {/* 4. Hourly Sales Velocity (Mini Column Bar Chart) */}
+      {/* 4. Hourly Sales Velocity (Column Bar Chart) */}
       <View style={styles.chartCard}>
         <View style={styles.cardHeader}>
           <Clock size={16} color={COLORS.primary} />
@@ -329,81 +300,48 @@ const styles = StyleSheet.create({
   container: {
     paddingBottom: 10
   },
-  targetCard: {
+  heroCard: {
     backgroundColor: COLORS.primary,
     borderRadius: 16,
     padding: 16,
     marginBottom: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
     elevation: 4
   },
-  targetTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12
-  },
-  targetIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
+  heroLeft: {
+    flex: 1,
     marginRight: 10
   },
-  targetTitles: {
-    flex: 1
-  },
-  targetTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#ffffff"
-  },
-  targetGoalText: {
+  heroLabel: {
     fontSize: 11,
     color: COLORS.primarySoft,
-    marginTop: 1
+    fontWeight: "600"
   },
-  targetBadge: {
-    backgroundColor: COLORS.accentGold,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12
-  },
-  targetBadgeText: {
-    color: COLORS.primaryDark,
-    fontSize: 12,
-    fontWeight: "900"
-  },
-  progressBarTrack: {
-    height: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 5,
-    overflow: "hidden",
-    marginBottom: 10
-  },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: COLORS.accentGold,
-    borderRadius: 5
-  },
-  targetFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  targetAchieved: {
-    fontSize: 11,
+  heroValue: {
+    fontSize: 24,
+    fontWeight: "900",
     color: "#ffffff",
-    fontWeight: "700"
+    marginTop: 2
   },
-  targetRemaining: {
+  heroSub: {
     fontSize: 11,
-    color: COLORS.primarySoft,
-    fontWeight: "700"
+    color: COLORS.accentGold,
+    fontWeight: "700",
+    marginTop: 2
+  },
+  heroIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center"
   },
   kpiGrid: {
     flexDirection: "row",
